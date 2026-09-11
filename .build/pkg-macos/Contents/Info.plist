@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>dev.petdex.desktop-native</string>
+  <key>CFBundleName</key>
+  <string>Petdex</string>
+  <key>CFBundleDisplayName</key>
+  <string>Petdex</string>
+  <key>CFBundleExecutable</key>
+  <string>petdex-desktop-native</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon.icns</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>11.0</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.9.1</string>
+  <key>CFBundleVersion</key>
+  <string>0.9.1</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>Petdex desktop pet on Native SDK: no WebView, no Node.</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>CFBundleURLName</key>
+      <string>dev.petdex.desktop-native.petdex</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>petdex</string>
+      </array>
+    </dict>
+  </array>
+
+</dict>
+</plist>

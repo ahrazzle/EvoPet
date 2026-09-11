@@ -1,0 +1,21 @@
+.{
+  .artifact = "pkg-macos",
+  .target = "macos",
+  .version = "0.9.1",
+  .app_id = "dev.petdex.desktop-native",
+  .executable = "petdex-desktop-native",
+  .optimize = "ReleaseFast",
+  .web_engine = "system",
+  .web_layer = "none (inferred: nothing in app.zon declares web use)",
+  .signing = "adhoc",
+  .asset_count = 1,
+
+  .capabilities = .{
+    "native_views",
+    "gpu_surfaces",
+    "menus",
+    "url_schemes",
+    "tray",
+
+  },
+}
