@@ -1,0 +1,4 @@
+zig/
+native-sdk/
+*.log
+zig.tar.xz

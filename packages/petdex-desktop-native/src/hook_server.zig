@@ -730,6 +730,7 @@ fn route(server: *Server, conn: *Conn, method: []const u8, target: []const u8, p
         @memcpy(event.state[0..applied.len], applied);
         const enqueue_result = mailbox.enqueueWithCounter(event);
         mirrorQueuedState(server, applied, enqueue_result) catch {};
+        spoolEvoEvent(server, "state", body);
 
         const dur_out: i64 = if (duration == 0) -1 else @intCast(duration);
         const out = if (dur_out < 0)
@@ -772,6 +773,7 @@ fn route(server: *Server, conn: *Conn, method: []const u8, target: []const u8, p
             mailbox.setBubbleAgentState(session, state[0..@min(state.len, 16)]);
         }
         mirrorBubble(server, capped, counter, title[0..@min(title.len, 96)], agent[0..@min(agent.len, 24)], busy) catch {};
+        spoolEvoEvent(server, "bubble", body);
         const out = std.fmt.bufPrint(&scratch, "{{\"ok\":true,\"counter\":{d}}}", .{counter}) catch return;
         return respond(conn, 200, out);
     }
@@ -1307,6 +1309,38 @@ fn writeRuntimeFile(server: *Server, name: []const u8, bytes: []const u8, mode: 
     // The 0600 on update-token is a POSIX guarantee only; on Windows
     // the file inherits the parent ACL (see plat.permissionsFromMode).
     if (!plat.writeFileMode(path, bytes, mode)) return error.WriteFailed;
+}
+
+// ------------------------------------------------------------- evopet tap
+//
+// EvoPet observation tap. Every agent's hook payload reaches the growth
+// system through this server: claude-code, codex and gemini via the hook
+// binary, and opencode by posting here directly -- it never invokes the
+// binary at all, so this route is the only place that can see every agent.
+// Each accepted payload is written verbatim into `runtime/evo-queue/` for
+// the growth runtime to drain and delete.
+//
+// Best-effort by design. The agents already depend on this route answering
+// exactly as it does, so observation must never change a response, never
+// fail a request, and never block on anything but a small local write.
+
+/// Per-run sequence, atomic because the server serves concurrent requests
+/// and two events sharing a name would silently overwrite one another.
+var evo_seq = std.atomic.Value(u64).init(0);
+
+fn spoolEvoEvent(server: *Server, endpoint: []const u8, body: []const u8) void {
+    if (body.len == 0) return;
+    var dir_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const dir = std.fmt.bufPrint(&dir_buf, "{s}/evo-queue", .{server.runtime_dir}) catch return;
+    plat.makeDir(dir);
+    const seq = evo_seq.fetchAdd(1, .monotonic) + 1;
+    // pid + wall clock make names unique across restarts as well, so the
+    // growth ledger can never see one event's file replace another's.
+    var path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const path = std.fmt.bufPrint(&path_buf, "{s}/{d}-{d}-{d}-{s}.json", .{
+        dir, server.pid, plat.nowMs(), seq, endpoint,
+    }) catch return;
+    _ = plat.writeFile(path, body);
 }
 
 fn mirrorState(server: *Server, state: []const u8, counter: u64) !void {

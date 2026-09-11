@@ -44,15 +44,23 @@ There is **no append-only event log**. `bubble.json` and `state.json` are overwr
 Measured: the counter advanced 2871 → 2914 while working (~43 events) and exactly one
 survived. Any watcher would silently undercount XP. Rejected on honesty grounds.
 
-### Tap option C — be inside the pipeline: the real answer
+### Tap option C — be inside the pipeline: IMPLEMENTED, VERIFIED
 
-Every agent's event, without exception, passes through the app's hook server. Patch
-`hook_server.zig`'s POST handlers for `/state` and `/bubble` to append the raw request body
-to our own append-only spool. One file, two call sites, and it catches **all** agents by
-construction — including opencode, which never touches the binary and would be missed by
-patching the hook runner instead.
+Every agent's event, without exception, passes through the app's hook server, so the tap
+goes in `hook_server.zig`: accepted `/state` and `/bubble` bodies are written verbatim into
+`runtime/evo-queue/`. One file, two call sites, and it catches **all** agents by
+construction — including opencode, which never touches the binary and would have been
+missed by patching the hook runner instead.
 
-This requires building our own app from this fork, which is the point of forking it.
+Verified end to end in an isolated `HOME` (nothing of the real pet touched):
+
+- a real claude-code hook through the hook binary spooled both a `/state` and a `/bubble`;
+- an opencode-style direct HTTP post spooled with `agent_source: opencode`;
+- **an unauthenticated post returns 401 and is not spooled** — the tap sits after auth, so
+  only genuine agent events enter the ledger.
+
+The payloads are richer than `bubble.json` ever was: the hook client enriches them with
+`agent_source`, `session_id`, `source_cwd`, `source_app` and `agent_state`.
 
 ## The blocker: the app build toolchain
 
@@ -89,11 +97,21 @@ existing aggregated XP from all nine profiles**, not started from zero. The pet 
 per-profile ledgers today; the combined ledger is the new single source of truth. No
 progress may be lost in the switch.
 
+## Status
+
+- Fork created, toolchain stood up, stock build reproducible: `zig 0.16.0` from Zig's own
+  index + `Railly/native` @ `c0b10d02` + `scripts/patch-native-sdk.sh` -> `native build`.
+  Scripts live in `.build/`; heavy artefacts are gitignored.
+- Tap implemented in `hook_server.zig`; `native test .` = **263/263 pass** with it, and
+  upstream's hook stdin regression still passes.
+- Not yet done: the consumer that drains `evo-queue/` into the combined ledger; installing
+  the patched app over the stock one; the force-combine seeding.
+
 ## Open decisions
 
-- **C or D.** Own the build and patch the hook server (robust, full fidelity, costs the
-  Native SDK toolchain and a locally signed app), or keep the stock app and take the
-  wrapper path (no toolchain, doubled events to verify).
+- **Install our build or not.** The tap only operates in an app we built. Installing it
+  over `/Applications/Petdex.app` is user-visible, and macOS distribution needs local
+  notarization (`scripts/sign-macos.sh`).
 - Whether the combined ledger makes the per-profile pets read the same state (one pet
   everywhere) or keeps per-profile rendering with an aggregate driving the desktop pet.
 - Package format for an evolving pet: multiple atlases (one per stage/form) plus a stage
