@@ -109,7 +109,7 @@ pub fn run(phase: []const u8, arg_agent: ?[]const u8, origin_app: plat.OriginApp
     var post_count: usize = 0;
     var body_buf: [1536]u8 = undefined;
     if (text.len > 0) {
-        const body = bubbleBodyWithMetadata(&body_buf, text, title, busy, agent, session_id, source_app, source_tty, source_cwd, herdr_pane, state);
+        const body = bubbleBodyWithMetadata(&body_buf, text, title, busy, agent, session_id, source_app, source_tty, source_cwd, herdr_pane, state, phase);
         if (body) |b| {
             if (startPost("/bubble", b, token)) |post| {
                 posts[post_count] = post;
@@ -119,7 +119,7 @@ pub fn run(phase: []const u8, arg_agent: ?[]const u8, origin_app: plat.OriginApp
     }
     if (state) |s| {
         const duration_ms: u32 = if (isToolFailurePhase(phase)) failed_duration_ms else 0;
-        const body = stateBody(&body_buf, s, duration_ms, agent);
+        const body = stateBody(&body_buf, s, duration_ms, agent, phase);
         if (body) |b| {
             if (startPost("/state", b, token)) |post| {
                 posts[post_count] = post;
@@ -174,7 +174,7 @@ fn isToolFailurePhase(phase: []const u8) bool {
 /// precisely how session_id got parsed, used for titles, and then left out of
 /// the POST that needed it.
 pub fn bubbleBody(out: []u8, text: []const u8, title: []const u8, busy: bool, agent: []const u8, session_id: ?[]const u8) ?[]const u8 {
-    return bubbleBodyWithMetadata(out, text, title, busy, agent, session_id, "", "", "", "", null);
+    return bubbleBodyWithMetadata(out, text, title, busy, agent, session_id, "", "", "", "", null, null);
 }
 
 /// `agent_state` carries what this one session is doing to the bubble the
@@ -183,7 +183,7 @@ pub fn bubbleBody(out: []u8, text: []const u8, title: []const u8, busy: bool, ag
 /// one. The flock renders a body per session, so the rich states the
 /// hooks already compute (failed, review, waiting) have to travel here to
 /// survive. Senders that pass null keep the previous body byte for byte.
-pub fn bubbleBodyWithMetadata(out: []u8, text: []const u8, title: []const u8, busy: bool, agent: []const u8, session_id: ?[]const u8, source_app: []const u8, source_tty: []const u8, source_cwd: []const u8, herdr_pane: []const u8, agent_state: ?[]const u8) ?[]const u8 {
+pub fn bubbleBodyWithMetadata(out: []u8, text: []const u8, title: []const u8, busy: bool, agent: []const u8, session_id: ?[]const u8, source_app: []const u8, source_tty: []const u8, source_cwd: []const u8, herdr_pane: []const u8, agent_state: ?[]const u8, phase: ?[]const u8) ?[]const u8 {
     var title_buf: [256]u8 = undefined;
     const title_part: []const u8 = if (title.len > 0)
         (std.fmt.bufPrint(&title_buf, ",\"title\":\"{s}\"", .{title}) catch return null)
@@ -204,7 +204,8 @@ pub fn bubbleBodyWithMetadata(out: []u8, text: []const u8, title: []const u8, bu
         (std.fmt.bufPrint(&state_buf, ",\"agent_state\":\"{s}\"", .{st}) catch return null)
     else
         "";
-    return std.fmt.bufPrint(out, "{{\"text\":\"{s}\"{s},\"busy\":{},\"agent_source\":\"{s}\"{s}{s}{s}}}", .{ text, title_part, busy, agent, session_part, metadata, state_part }) catch null;
+    var phase_buf: [32]u8 = undefined;
+    return std.fmt.bufPrint(out, "{{\"text\":\"{s}\"{s},\"busy\":{},\"agent_source\":\"{s}\"{s}{s}{s}{s}}}", .{ text, title_part, busy, agent, session_part, metadata, state_part, phasePart(&phase_buf, phase) }) catch null;
 }
 
 /// The /state request body. Extracted and pure for one reason: `run()` reaches
@@ -213,13 +214,34 @@ pub fn bubbleBodyWithMetadata(out: []u8, text: []const u8, title: []const u8, bu
 /// means duration_ms == 0 provably renders exactly what shipped before this
 /// phase existed — byte-identity for every other agent is structural, not a
 /// promise someone has to keep across future edits.
-pub fn stateBody(out: []u8, state: []const u8, duration_ms: u32, agent: []const u8) ?[]const u8 {
+pub fn stateBody(out: []u8, state: []const u8, duration_ms: u32, agent: []const u8, phase: ?[]const u8) ?[]const u8 {
     var dur_buf: [24]u8 = undefined;
     const dur: []const u8 = if (duration_ms > 0)
         (std.fmt.bufPrint(&dur_buf, ",\"duration\":{d}", .{duration_ms}) catch return null)
     else
         "";
-    return std.fmt.bufPrint(out, "{{\"state\":\"{s}\"{s},\"agent_source\":\"{s}\"}}", .{ state, dur, agent }) catch null;
+    var phase_buf: [32]u8 = undefined;
+    return std.fmt.bufPrint(out, "{{\"state\":\"{s}\"{s},\"agent_source\":\"{s}\"{s}}}", .{ state, dur, agent, phasePart(&phase_buf, phase) }) catch null;
+}
+
+/// The hook phase this body came from. Unlike every other field here it is not
+/// about display: `post` and `stop` both collapse to the same sprite state, so
+/// without the phase a consumer cannot tell a tool finishing from a turn
+/// ending, and turn boundaries are what growth is measured in.
+///
+/// Optional, and appended last, so a sender that does not know a phase keeps
+/// producing exactly the body that shipped before this field existed -- the
+/// same byte-identity promise `agent_state` carries. Phases are a fixed
+/// vocabulary from the agent's own config, so like `agent` they ride unescaped.
+fn phasePart(buf: []u8, phase: ?[]const u8) []const u8 {
+    const p = phase orelse return "";
+    if (p.len == 0 or p.len > 24) return "";
+    for (p) |c| {
+        const ok = (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or
+            (c >= '0' and c <= '9') or c == '-' or c == '_';
+        if (!ok) return "";
+    }
+    return std.fmt.bufPrint(buf, ",\"phase\":\"{s}\"", .{p}) catch "";
 }
 
 // ------------------------------------------------------- state mapping
@@ -800,18 +822,18 @@ test "stateBody adds duration only for the failure phase" {
     var buf: [256]u8 = undefined;
     try t.expectEqualStrings(
         "{\"state\":\"failed\",\"duration\":1220,\"agent_source\":\"qoder\"}",
-        stateBody(&buf, "failed", failed_duration_ms, "qoder").?,
+        stateBody(&buf, "failed", failed_duration_ms, "qoder", null).?,
     );
     // AC12 regression guard: every pre-existing phase must render exactly what
     // shipped before this change. This fails the moment anyone reintroduces a
     // second format string or reorders the keys.
     try t.expectEqualStrings(
         "{\"state\":\"idle\",\"agent_source\":\"claude-code\"}",
-        stateBody(&buf, "idle", 0, "claude-code").?,
+        stateBody(&buf, "idle", 0, "claude-code", null).?,
     );
     try t.expectEqualStrings(
         "{\"state\":\"waving\",\"agent_source\":\"codex\"}",
-        stateBody(&buf, "waving", 0, "codex").?,
+        stateBody(&buf, "waving", 0, "codex", null).?,
     );
 }
 
@@ -855,7 +877,7 @@ test "bubbleBody carries session_id, and omits it when there is none" {
 
 test "bubble metadata carries the exact Herdr pane id" {
     var buf: [1024]u8 = undefined;
-    const body = bubbleBodyWithMetadata(&buf, "Needs approval", "Fix auth", false, "cursor", "session-1", "ghostty", "", "/repo", "w1:p5", null).?;
+    const body = bubbleBodyWithMetadata(&buf, "Needs approval", "Fix auth", false, "cursor", "session-1", "ghostty", "", "/repo", "w1:p5", null, null).?;
     try t.expectEqualStrings("w1:p5", hook_server.jsonStringPub(body, "herdr_pane_id").?);
 }
 
@@ -941,7 +963,7 @@ test "a bubble without a reported state is byte-identical to before" {
     // existed: this is the compatibility promise, not a preference.
     var with: [1536]u8 = undefined;
     var without: [1536]u8 = undefined;
-    const a = bubbleBodyWithMetadata(&with, "text", "title", true, "claude", "s1", "", "", "", "", null).?;
+    const a = bubbleBodyWithMetadata(&with, "text", "title", true, "claude", "s1", "", "", "", "", null, null).?;
     const b = bubbleBody(&without, "text", "title", true, "claude", "s1").?;
     try std.testing.expectEqualStrings(b, a);
     try std.testing.expect(std.mem.indexOf(u8, a, "agent_state") == null);
@@ -949,9 +971,45 @@ test "a bubble without a reported state is byte-identical to before" {
 
 test "a reported state rides the bubble that carries the session" {
     var buf: [1536]u8 = undefined;
-    const body = bubbleBodyWithMetadata(&buf, "text", "title", true, "claude", "s1", "", "", "", "", "failed").?;
+    const body = bubbleBodyWithMetadata(&buf, "text", "title", true, "claude", "s1", "", "", "", "", "failed", null).?;
     try std.testing.expect(std.mem.indexOf(u8, body, "\"agent_state\":\"failed\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, body, "\"session_id\":\"s1\"") != null);
+}
+
+test "the hook phase rides the body so post and stop stay distinguishable" {
+    // post and stop both collapse to the same sprite state, so the phase is the
+    // only thing that tells a finished tool from a finished turn -- and turn
+    // boundaries are what growth is measured in.
+    var stop_buf: [1536]u8 = undefined;
+    var post_buf: [1536]u8 = undefined;
+    const with_stop = bubbleBodyWithMetadata(&stop_buf, "text", "title", true, "claude", "s1", "", "", "", "", null, "stop").?;
+    const with_post = bubbleBodyWithMetadata(&post_buf, "text", "title", true, "claude", "s1", "", "", "", "", null, "post").?;
+    try std.testing.expect(std.mem.indexOf(u8, with_stop, "\"phase\":\"stop\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, with_post, "\"phase\":\"post\"") != null);
+    try std.testing.expect(!std.mem.eql(u8, with_stop, with_post));
+}
+
+test "a body without a phase is byte-identical to before the field existed" {
+    var none_buf: [1536]u8 = undefined;
+    var empty_buf: [1536]u8 = undefined;
+    const absent = bubbleBodyWithMetadata(&none_buf, "text", "title", true, "claude", "s1", "", "", "", "", "failed", null).?;
+    const blank = bubbleBodyWithMetadata(&empty_buf, "text", "title", true, "claude", "s1", "", "", "", "", "failed", "").?;
+    try std.testing.expectEqualStrings(blank, absent);
+    try std.testing.expect(std.mem.indexOf(u8, absent, "phase") == null);
+}
+
+test "an unusable phase is dropped rather than emitted raw" {
+    // A phase with a quote would break the body the server scans back.
+    var buf: [1536]u8 = undefined;
+    const body = bubbleBodyWithMetadata(&buf, "text", "title", true, "claude", "s1", "", "", "", "", null, "stop\"x").?;
+    try std.testing.expect(std.mem.indexOf(u8, body, "phase") == null);
+}
+
+test "state bodies carry the phase too" {
+    var buf: [512]u8 = undefined;
+    const body = stateBody(&buf, "idle", 0, "claude-code", "stop").?;
+    try std.testing.expect(std.mem.indexOf(u8, body, "\"phase\":\"stop\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, body, "\"agent_source\":\"claude-code\"") != null);
 }
 
 test "the states only direct hooks can see reach the bubble" {
