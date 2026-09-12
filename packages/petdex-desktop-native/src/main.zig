@@ -3557,8 +3557,25 @@ fn bubbleDeadlineMs(now_ms: i64, lifetime_secs: f32) i64 {
     return if (seconds == 0) -1 else now_ms + @as(i64, @intFromFloat(seconds * 1000));
 }
 
-fn bubbleExpiryMs(now_ms: i64, lifetime_secs: f32, busy: bool) i64 {
-    return if (busy) -1 else bubbleDeadlineMs(now_ms, lifetime_secs);
+/// A busy card normally has no deadline: the spinner means "still working" and
+/// has to survive a long tool call. That is only safe while the card is
+/// attributable to a conversation that will report a terminal phase. A card
+/// with no title row cannot be attributed to one — a background-process id
+/// used as a session key, the blank sentinel, a worker that never reports its
+/// stop — so no terminal phase is coming and it would hold its slot, spinning,
+/// forever. Bound exactly those.
+const bubble_phantom_busy_secs: f32 = 180;
+
+fn bubblePhantomDeadlineMs(now_ms: i64) i64 {
+    return now_ms + @as(i64, @intFromFloat(bubble_phantom_busy_secs * 1000));
+}
+
+fn bubbleExpiryMs(now_ms: i64, lifetime_secs: f32, busy: bool, titled: bool) i64 {
+    if (!busy) return bubbleDeadlineMs(now_ms, lifetime_secs);
+    // Deliberately NOT routed through `bubbleDeadlineMs`: `lifetime_secs` may
+    // be 0 ("sticky", never expires) and its clamp caps at 60s, neither of
+    // which may apply to this ceiling.
+    return if (titled) -1 else bubblePhantomDeadlineMs(now_ms);
 }
 
 fn bubbleLifetimeExpired(deadline_ms: i64, now_ms: i64, state: State) bool {
@@ -4281,7 +4298,12 @@ fn expireBubbles(model: *Model, now_ms: i64) bool {
 /// a fresh one.
 fn syncBubbleDeadlines(model: *Model, previous: []const hook_server.Bubble, previous_deadlines: []const i64, now_ms: i64) void {
     for (0..model.bubbles_len) |i| {
-        const fresh = bubbleExpiryMs(now_ms, model.bubble_lifetime_secs, model.bubbles[i].busy);
+        const fresh = bubbleExpiryMs(
+            now_ms,
+            model.bubble_lifetime_secs,
+            model.bubbles[i].busy,
+            model.bubbles[i].title_len > 0,
+        );
         model.bubble_expires_at_ms[i] = fresh;
         for (previous, previous_deadlines) |old, deadline| {
             if (!std.mem.eql(u8, old.sessionSlice(), model.bubbles[i].sessionSlice())) continue;
@@ -5756,9 +5778,13 @@ test "bubble lifetime validates and produces a deadline" {
     try std.testing.expectEqual(@as(f32, 6), clampBubbleLifetime(5.6));
     try std.testing.expectEqual(@as(i64, -1), bubbleDeadlineMs(2000, 0));
     try std.testing.expectEqual(@as(i64, 7000), bubbleDeadlineMs(2000, 5));
-    try std.testing.expectEqual(@as(i64, -1), bubbleExpiryMs(2000, 0, false));
-    try std.testing.expectEqual(@as(i64, -1), bubbleExpiryMs(2000, 5, true));
-    try std.testing.expectEqual(@as(i64, 7000), bubbleExpiryMs(2000, 5, false));
+    try std.testing.expectEqual(@as(i64, -1), bubbleExpiryMs(2000, 0, false, false));
+    try std.testing.expectEqual(@as(i64, -1), bubbleExpiryMs(2000, 5, true, true));
+    try std.testing.expectEqual(@as(i64, 7000), bubbleExpiryMs(2000, 5, false, false));
+    // The phantom: an untitled busy card is bounded even when the configured
+    // lifetime is 0 (sticky) or shorter than the ceiling.
+    try std.testing.expectEqual(@as(i64, 182_000), bubbleExpiryMs(2000, 0, true, false));
+    try std.testing.expectEqual(@as(i64, 182_000), bubbleExpiryMs(2000, 5, true, false));
     try std.testing.expect(!bubbleLifetimeExpired(7000, 8000, .waiting));
     try std.testing.expect(bubbleLifetimeExpired(7000, 8000, .idle));
 }
@@ -5773,6 +5799,22 @@ fn testPushBubble(model: *Model, session: []const u8, text: []const u8, busy: bo
     b.text_len = text.len;
     model.bubbles[i] = b;
     model.bubble_expires_at_ms[i] = deadline;
+    model.bubbles_len = i + 1;
+}
+
+/// Seed the model's stack with a title row, the shape a real conversation
+/// leaves (`testPushBubble` covers the untitled/phantom shape).
+fn testPushBubbleTitled(model: *Model, session: []const u8, text: []const u8, title: []const u8, busy: bool) void {
+    const i = model.bubbles_len;
+    var b: hook_server.Bubble = .{ .busy = busy, .counter = @intCast(i + 1) };
+    @memcpy(b.session[0..session.len], session);
+    b.session_len = session.len;
+    @memcpy(b.text[0..text.len], text);
+    b.text_len = text.len;
+    @memcpy(b.title[0..title.len], title);
+    b.title_len = title.len;
+    model.bubbles[i] = b;
+    model.bubble_expires_at_ms[i] = -1;
     model.bubbles_len = i + 1;
 }
 
@@ -6876,6 +6918,56 @@ test "an unchanged bubble keeps its deadline when another one updates" {
     syncBubbleDeadlines(&model, previous[0..2], previous_deadlines[0..2], 10_000);
     try std.testing.expectEqual(@as(i64, 4000), model.bubble_expires_at_ms[0]);
     try std.testing.expectEqual(@as(i64, 15_000), model.bubble_expires_at_ms[1]);
+}
+
+test "a titleless busy card cannot hold a slot forever" {
+    // The zombie card: a pre/post_tool_call event whose session key is not a
+    // conversation (a background-process id, the blank sentinel, a worker that
+    // never reports its stop) opens a card with no title row and NEVER gets a
+    // terminal phase. `busy` therefore stayed true with an immortal deadline
+    // and the spinner outlived every other card in the stack.
+    var model: Model = .{};
+    // 0 is the sticky "no expiry" lifetime: the setting where the phantom was
+    // immortal even though the user had configured a bubble lifetime.
+    model.bubble_lifetime_secs = 0;
+    testPushBubble(&model, "proc_9f4ecd4d2fc1", "Called process_manage", true, -1);
+    testPushBubbleTitled(&model, "20260912_144649_1d38ff98", "Calling terminal", "Fix the cards", true);
+
+    const no_previous = [_]hook_server.Bubble{};
+    const no_deadlines = [_]i64{};
+    syncBubbleDeadlines(&model, &no_previous, &no_deadlines, 1_000);
+
+    // The unattributable card gets a bounded lease...
+    try std.testing.expect(model.bubble_expires_at_ms[0] > 1_000);
+    // ...while a titled busy card keeps the immortal lease that means
+    // "genuinely live work" and must not be hidden early.
+    try std.testing.expectEqual(@as(i64, -1), model.bubble_expires_at_ms[1]);
+
+    try std.testing.expect(!expireBubbles(&model, 179_000));
+    try std.testing.expectEqual(@as(usize, 2), model.bubbles_len);
+
+    // Past the ceiling the phantom is gone and the live card is untouched.
+    try std.testing.expect(expireBubbles(&model, 181_000));
+    try std.testing.expectEqual(@as(usize, 1), model.bubbles_len);
+    try std.testing.expectEqualStrings("20260912_144649_1d38ff98", model.bubbles[0].sessionSlice());
+}
+
+test "a titled busy card still expires when its terminal phase arrives" {
+    // Regression guard on the preserved behaviour: bubble lifetime still
+    // governs a completed card, and a busy card that reports completion
+    // (`session-end` ⇒ busy=false) is still dropped on the configured clock.
+    var model: Model = .{};
+    model.bubble_lifetime_secs = 27;
+    testPushBubbleTitled(&model, "session-a", "Calling terminal", "Live work", true);
+    model.bubbles[0].busy = false;
+    model.bubbles[0].counter = 2;
+
+    const no_previous = [_]hook_server.Bubble{};
+    const no_deadlines = [_]i64{};
+    syncBubbleDeadlines(&model, &no_previous, &no_deadlines, 1_000);
+    try std.testing.expectEqual(@as(i64, 28_000), model.bubble_expires_at_ms[0]);
+    try std.testing.expect(!expireBubbles(&model, 27_999));
+    try std.testing.expect(expireBubbles(&model, 28_000));
 }
 
 test "the auto-upload helpers read the shared file, default on, and write it" {
