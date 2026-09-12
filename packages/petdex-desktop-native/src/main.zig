@@ -86,11 +86,17 @@ const stateDef = sprite.stateDef;
 
 // ------------------------------------------------------------------ model
 
+/// The care set the desktop pet menu offers. Clean/feed/play all resolve to the ledger's
+/// ``care`` event (``mess -2``, a care mistake decayed), applied to the one shared combined
+/// ledger by the evo-queue drain -- never to a per-profile ledger.
+pub const CareAction = enum { clean, feed, play };
+
 pub const Msg = union(enum) {
     frame_tick: native_sdk.EffectTimer,
     poll_tick: native_sdk.EffectTimer,
     frame_clock,
     cycle_state,
+    care: CareAction,
     open_settings,
     settings_closed,
     close_pet,
@@ -3045,6 +3051,7 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             if (model.state == .@"running-left" or model.state == .@"running-right")
                 applyState(model, .waving, 1200, fx);
         },
+        .care => |action| spoolCareEvent(action),
         .noop => {},
         .open_pets_folder => {
             if (env_home) |home| {
@@ -3402,15 +3409,87 @@ pub fn onCommand(name: []const u8) ?Msg {
 pub const AppUi = canvas.Ui(Msg);
 
 const pet_menu = [_]AppUi.ContextMenuItem{
+    .{ .label = "Clean", .msg = .{ .care = .clean } },
+    .{ .label = "Feed", .msg = .{ .care = .feed } },
+    .{ .label = "Play", .msg = .{ .care = .play } },
     .{ .label = "Open Settings", .msg = .open_settings },
     .{ .label = "Open Flock", .msg = .toggle_flock_window },
     .{ .label = "View Pet on Petdex", .msg = .open_active_pet_page },
     .{ .label = "Close Pet", .msg = .close_pet },
 };
 
+/// Names as the drain's ``CARE_ACTIONS`` spells them; the body below is parsed by
+/// ``tamahermes.evopet_drain.classify`` and applied to the combined ledger.
+fn careActionName(action: CareAction) []const u8 {
+    return switch (action) {
+        .clean => "clean",
+        .feed => "feed",
+        .play => "play",
+    };
+}
+
+/// The care request body, byte-for-byte the contract the drain's tests pin.
+pub fn careEventBody(buf: []u8, action: CareAction) []const u8 {
+    return std.fmt.bufPrint(
+        buf,
+        "{{\"event\":\"care\",\"action\":\"{s}\",\"agent_source\":\"evopet\"}}",
+        .{careActionName(action)},
+    ) catch "";
+}
+
+test "the pet context menu offers clean, feed and play" {
+    try std.testing.expectEqualStrings("Clean", pet_menu[0].label);
+    try std.testing.expectEqualStrings("Feed", pet_menu[1].label);
+    try std.testing.expectEqualStrings("Play", pet_menu[2].label);
+    const first = pet_menu[0].msg orelse return error.TestUnexpectedResult;
+    switch (first) {
+        .care => |action| try std.testing.expectEqual(CareAction.clean, action),
+        else => return error.TestUnexpectedResult,
+    }
+}
+
+test "a care request spools the JSON the shared-ledger drain consumes" {
+    var buf: [128]u8 = undefined;
+    try std.testing.expectEqualStrings(
+        "{\"event\":\"care\",\"action\":\"clean\",\"agent_source\":\"evopet\"}",
+        careEventBody(&buf, .clean),
+    );
+    try std.testing.expectEqualStrings(
+        "{\"event\":\"care\",\"action\":\"feed\",\"agent_source\":\"evopet\"}",
+        careEventBody(&buf, .feed),
+    );
+    try std.testing.expectEqualStrings(
+        "{\"event\":\"care\",\"action\":\"play\",\"agent_source\":\"evopet\"}",
+        careEventBody(&buf, .play),
+    );
+}
+
+var care_seq = std.atomic.Value(u64).init(0);
+
+/// Spool one care request into ``~/.petdex/runtime/evo-queue/`` -- the same spool every
+/// agent's hook payload lands in -- so the drain applies it to the one shared ledger. The
+/// menu never touches visual state directly: it asks the shared path to do the work.
+pub fn spoolCareEvent(action: CareAction) void {
+    const home = env_home orelse return;
+    var dir_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const dir = std.fmt.bufPrint(&dir_buf, "{s}/.petdex/runtime/evo-queue", .{home}) catch return;
+    plat.makeDir(dir);
+    var body_buf: [128]u8 = undefined;
+    const body = careEventBody(&body_buf, action);
+    if (body.len == 0) return;
+    const seq = care_seq.fetchAdd(1, .monotonic) + 1;
+    var path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const path = std.fmt.bufPrint(
+        &path_buf,
+        "{s}/{d}-{d}-{d}-care.json",
+        .{ dir, plat.processId(), plat.nowMs(), seq },
+    ) catch return;
+    _ = plat.writeFile(path, body);
+}
+
 test "pet context menu opens the flock" {
-    try std.testing.expectEqualStrings("Open Flock", pet_menu[1].label);
-    const msg = pet_menu[1].msg orelse return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("Open Flock", pet_menu[4].label);
+    const msg = pet_menu[4].msg orelse return error.TestUnexpectedResult;
     switch (msg) {
         .toggle_flock_window => {},
         else => return error.TestUnexpectedResult,
