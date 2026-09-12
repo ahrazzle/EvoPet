@@ -1,165 +1,153 @@
 <div align="center">
 
-<img src="public/brand/petdex-desktop-icon.png" alt="Petdex" width="120" />
+<img src="site/public/evopet-logo.png" alt="EvoPet" width="120" />
 
-<h1>Petdex</h1>
+<h1>EvoPet</h1>
 
 <p>
-  The public gallery of animated companions for Codex.
+  One pixel-art companion that lives on your desktop and in your agent's terminal,
+  and grows from the work you actually do.
   <br />
-  Browse, install, and submit pets with one command.
+  One pet, not one per tool: every profile, every group chat and every agent you run
+  feeds the same creature.
 </p>
 
 <p>
-  <a href="https://petdex.dev"><strong>petdex.dev</strong></a>
+  <a href="https://github.com/ahrazzle/EvoPet"><strong>EvoPet</strong></a>
   &nbsp;·&nbsp;
-  <a href="https://petdex.dev/built-with">Built with Petdex</a>
+  <a href="https://github.com/ahrazzle/TamaHermes">TamaHermes</a>
   &nbsp;·&nbsp;
-  <a href="https://discord.gg/byhubdyBTe">Discord</a>
+  <a href="https://github.com/Alichua/TamaCodex">TamaCodex</a>
   &nbsp;·&nbsp;
-  <a href="https://www.npmjs.com/package/petdex">npm</a>
-</p>
-
-<p>
-  <a href="https://www.npmjs.com/package/petdex"><img src="https://img.shields.io/npm/v/petdex?style=flat-square&label=cli&color=000000" alt="npm version" /></a>
-  <a href="https://github.com/crafter-station/petdex/stargazers"><img src="https://img.shields.io/github/stars/crafter-station/petdex?style=flat-square&color=000000" alt="GitHub stars" /></a>
-  <a href="https://github.com/crafter-station/petdex/blob/main/LICENSE"><img src="https://img.shields.io/github/license/crafter-station/petdex?style=flat-square&color=000000" alt="MIT license" /></a>
-  <a href="https://github.com/crafter-station/petdex/issues"><img src="https://img.shields.io/github/issues/crafter-station/petdex?style=flat-square&color=000000" alt="GitHub issues" /></a>
+  <a href="https://github.com/crafter-station/petdex">PetDex</a>
 </p>
 
 </div>
 
 ---
 
-## What is Petdex
+## What EvoPet is
 
-Petdex is three things working together:
+EvoPet is a cross-agent desktop companion with two halves, built and maintained
+separately, that only make sense together:
 
-1. **A web gallery** at [petdex.dev](https://petdex.dev) where the community submits, reviews, and showcases animated pets in the Codex sprite format.
-2. **A CLI** that installs any pet on your machine with one command and ships them straight into Codex.
-3. **A desktop app** that floats a pet on your screen and reacts to your coding agent's activity in real time.
+- **The pet** owns the mechanics: XP, the level ladder, the stats, the life stages and
+  evolution. It draws the sprite atlas that every surface renders, so the terminal pet, the
+  desktop pet and the preview can never drift apart. Python; it installs from its own tree.
+- **The desktop shell** floats that creature above your other windows with a HUD, and taps
+  the hook payload every hooked agent sends, so the ledger counts Claude Code, Codex,
+  opencode and Gemini CLI alongside Hermes. A native build on a pinned SDK, and it lives in
+  this repository.
 
-Every pet is a folder. Every folder is a Pokédex entry. Every entry is one `npx petdex install` away.
+The pet is the reason the project exists; the shell is the surface it appears on.
 
-## Quick start
+## Where EvoPet comes from
 
-Follow this checklist to get a pet installed, visible in Codex, and connected to the desktop app.
+EvoPet brings a pet lineage and a desktop-shell lineage together. Being exact about the
+debt is part of the project:
 
-1. Install a known pet:
+- **The pet half comes from TamaHermes, which continues TamaCodex.**
+  [TamaCodex](https://github.com/Alichua/TamaCodex) is the original upstream/source project
+  for the pet-creation lineage. [TamaHermes](https://github.com/ahrazzle/TamaHermes) is that
+  lineage's maintained pet-half predecessor, and it is the tree EvoPet's pet half is built
+  from. TamaHermes carries on in parallel; EvoPet does not replace it.
+- **The shell half is PetDex-inspired.**
+  [PetDex](https://github.com/crafter-station/petdex) is credited as the inspiration and
+  homage behind EvoPet's desktop shell/app lineage: the floating companion, the hook
+  pipeline, the sprite format, the gallery idea. An earlier mirror of that lineage was
+  published as `ahrazzle/petdex`.
+
+  **EvoPet is not a fork of PetDex, and it should not be described as one.** PetDex is a
+  gallery and a desktop floater with no progression model anywhere in it; EvoPet's whole
+  point is a progression model — shared XP, levels, stages and evolution — that PetDex has
+  no concept of. The shell borrows a lineage and credits it; the pet is new work on the
+  TamaCodex/TamaHermes line.
+
+## One pet, shared XP
+
+The defining requirement, and the reason the combined ledger exists: **one pet per person,
+not one per tool.**
+
+- Every Hermes profile you run feeds the same creature.
+- Group chats feed the same creature.
+- Every other hooked agent (Claude Code, Codex, opencode, Gemini CLI) feeds the same
+  creature too.
+
+Two routes lead into one combined ledger, each source counted on exactly one of them so
+nothing is double-counted. Growth is read at turn boundaries only, so a turn in one agent
+is worth a turn in another. The combined ledger is seeded by force-combining the existing
+per-profile XP, so switching to it loses no progress.
+
+Only numbers are stored: XP, counters, stats and traits. Never your prompts, never tool
+output, never a file path. That restriction is enforced by the combined ledger's own test,
+not by convention.
+
+## Status
+
+Honest, as of 11 September 2026:
+
+- The pet's mechanics, the combined ledger and the drain that fills it are in the pet tree.
+- The desktop shell runs as a **local build** on macOS. There is no notarized download yet,
+  and a bundle built on one Mac is rejected by Gatekeeper on any other, so nothing installs
+  on a machine that did not build it.
+- The library service is written and passes its own end-to-end round trip, but it is **not
+  deployed**. The site's library page reports that it cannot reach the library rather than
+  showing a fake empty shelf.
+- EvoPet's own repository is public as of 11 September 2026.
+
+## Install and develop
+
+The pet and the shell install separately, and the pet runs alone in the terminal with no
+desktop app at all.
+
+**The pet half.** From a checkout of the pet tree:
 
 ```sh
-npx petdex install boba
+./hermes/install-hermes.sh --line toast --machine aurora
+hermes plugins enable tamahermes
+hermes pets select tamahermes
+hermes pets doctor        # should report the pet ready
 ```
 
-You should see `~/.petdex/pets/boba/` with `pet.json` and a spritesheet.
+Hermes homes are profile-scoped, so install once per profile you actually use.
+`install-all-profiles.sh` covers the default profile and every named profile on the machine
+in one command. To float the pet on the desktop, mirror it into the shell's pet directory.
 
-2. Get the desktop app from [petdex.dev/download](https://petdex.dev/download). It
-   runs on macOS, Linux and Windows.
+**The desktop shell.** Today the honest path is to build it from the app tree on the machine
+that will run it; it is a native build against a pinned SDK, and macOS distribution needs
+local notarization.
 
-3. Open it, then hit <kbd>Cmd</kbd>+<kbd>,</kbd> over the pet to open Settings.
-   Pick your pet under **Pets**, and connect your coding agents under **Agents**
-   with one click each. No terminal involved.
+**The project site.** `site/` is a static Astro site with no runtime dependency beyond the
+browser reading the library's public index:
 
-The pet floats above your workspace and animates on every tool call your agent
-makes.
+```sh
+cd site
+npm ci
+npm run build      # -> site/dist
+```
 
-## For users
+Node 22.12 or newer (Astro 7 requires it). Repository work uses Bun at the root —
+`bun install`, then `bun run dev:docker` for a local full stack. See
+[`CONTRIBUTING.md`](./CONTRIBUTING.md) and [`AGENTS.md`](./AGENTS.md).
 
-| You want to... | Do this |
-| --- | --- |
-| Browse pets | Visit [petdex.dev](https://petdex.dev) |
-| Install a pet | `npx petdex install <slug>` |
-| Switch active mascot | Open Settings in the desktop app (<kbd>Cmd</kbd>+<kbd>,</kbd>) |
-| Run the desktop floater | Download it from [petdex.dev/download](https://petdex.dev/download) |
-| Make a pet | Use the `hatch-pet` skill inside Codex, or build one with the [Petdex creator tools](https://petdex.dev/create) |
-| Submit a pet | `npx petdex submit ./my-pet/` or drop it through the web submitter |
-| Join the community | [Discord](https://discord.gg/byhubdyBTe) |
-
-Full CLI reference: [`packages/petdex-cli/README.md`](./packages/petdex-cli/README.md).
-
-## For builders
-
-If you want to build on top of Petdex (a desktop client, a wearable, an SDK, a Discord bot, anything), you have two stable surfaces:
-
-- **The HTTP API.** `petdex.dev/api/manifest` returns every approved pet with its slug, spritesheet URL, animation states, and metadata.
-- **The pet package format.** Every pet is a `pet.json` plus a `spritesheet.{webp,png}` rendered as an 8x9 grid of 192x208 frames, or the v2 8x11 grid.
-
-21 open-source and source-available projects already build on these. See [petdex.dev/built-with](https://petdex.dev/built-with) for the catalog, then [submit yours via the issue template](https://github.com/crafter-station/petdex/issues/new?template=built-with.yml).
-
-## Architecture
+## Repository layout
 
 ```text
-crafter-station/petdex
-├── src/
-│   ├── app/[locale]/          Public site: gallery, /pets/<slug>, /collections, /built-with, /community, /create, /download, /submit, /u/<handle>, ...
-│   ├── app/api/cli/           CLI endpoints: OAuth config, submit (zip → presigned R2), dedup check, register
-│   ├── app/api/manifest/      Public manifest: every approved pet with its spritesheet URL
-│   ├── app/api/admin/         Admin review surface for submissions, edits, collection requests
-│   └── lib/db/schema.ts       Drizzle schema (Postgres)
+EvoPet/
 ├── packages/
-│   ├── petdex-cli/            npm `petdex` catalog client (auth, list, install, submit)
-│   ├── petdex-desktop-native/ Native SDK floating mascot for macOS, Linux and Windows
-│   ├── petdex-desktop-windows/ Legacy Tauri Windows implementation (not the release path)
-│   └── discord-bot/           Discord.js bot for the Petdex server
-├── public/built-with/         Screenshots for the community page
-├── public/brand/              Logos, OS icons, Discord icon
-└── drizzle/                   SQL migrations (Postgres schema history)
+│   ├── petdex-desktop-native/   the desktop shell: native app, hook server, sprite renderer
+│   ├── petdex-cli/              the catalog client CLI
+│   └── discord-bot/             the community bot
+├── site/                        the EvoPet project site (Astro, GitHub Pages)
+├── src/                         the web app (Next.js) and its API routes
+├── drizzle/                     Postgres schema migrations
+├── docs/                        project notes
+└── scripts/                     build, release and maintenance scripts
 ```
 
-**Web stack**: Next.js 16, React 19, Tailwind, Drizzle, Postgres, Redis, Clerk, R2.<br />
-**CLI**: Bun + TypeScript, ships as a single npm binary. Auth via Clerk OAuth + PKCE.<br />
-**Desktop**: Native SDK app with an in-process Zig hook server on `127.0.0.1:7777`. The current release path has no WebView or Node sidecar.
+The pet tree is a separate checkout, not a directory in this repository.
 
-## Develop locally
+## Licenses
 
-Two paths are supported.
-
-| Goal | Command | Setup |
-| --- | --- | --- |
-| Local full stack | `bun run dev:docker` | Docker or Podman, ~30s warm-up. |
-| Run against real services | `bun run dev` | `.env.local` filled (maintainers only). |
-
-```sh
-git clone https://github.com/crafter-station/petdex.git
-cd petdex
-bun install
-bun run dev:docker
-```
-
-Open [localhost:3000](http://localhost:3000). Full guide in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
-
-## Pet package format
-
-Every pet is two files:
-
-```text
-my-pet/
-├── pet.json                Metadata: name, slug, tags, vibes, kind, frame size, animation states
-└── spritesheet.webp        8x9 or v2 8x11 frame grid of 192x208 px each (or .png)
-```
-
-The native renderer supports nine state rows: `idle`, `running-right`, `running-left`, `waving`, `jumping`, `failed`, `waiting`, `running`, and `review`. Codex and the supported coding agents map their activity hooks to these states. The v2 8x11 atlas leaves two additional rows available to the consuming client.
-
-## Contribute
-
-- **Submit a pet:** [petdex.dev/submit](https://petdex.dev/submit) or `npx petdex submit <path>`.
-- **List your project:** open a [Built with Petdex issue](https://github.com/crafter-station/petdex/issues/new?template=built-with.yml).
-- **Fix a bug or add a feature:** read [`CONTRIBUTING.md`](./CONTRIBUTING.md), then open a PR.
-- **Hang out:** [Discord](https://discord.gg/byhubdyBTe) has channels for shipping (`#wip`, `#ship-or-sink`), feedback (`#cli-feedback`), and showcases (`#showcase`).
-
-## Pet IP and takedowns
-
-Pets are user-submitted fan art. Petdex does not claim rights to any underlying IP. If you hold rights to a character and want a pet removed, file a [takedown request](https://github.com/crafter-station/petdex/issues/new?template=takedown.yml) and we review within 48 hours.
-
-## License
-
-The source code is [MIT](./LICENSE). Pet assets are owned by their submitters under whatever license they choose to declare.
-
----
-
-<div align="center">
-
-Made by <a href="https://crafter.run">Crafter Station</a>.
-Lead: <a href="https://x.com/RaillyHugo">@RaillyHugo</a>.
-
-</div>
+The source code is [MIT](./LICENSE). Pet assets — sprites and other artwork — are owned by
+their submitters under whatever license they declare.

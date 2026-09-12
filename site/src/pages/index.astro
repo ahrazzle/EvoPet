@@ -2,8 +2,10 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 // The project has two lineages and one upstream original, so `REPOS` carries
 // four links, not one. It is the single source of them (src/data/nav.ts): the
-// header, the hero row and the footer all render the same four.
-import { REPOS } from '../data/nav';
+// header, the hero row and the footer all render the same four. The about
+// section links the lineage repos by name, so it imports the same constants
+// rather than hardcoding URLs.
+import { PET_REPO, REPOS, SHELL_REPO, TOOLCHAIN_REPO } from '../data/nav';
 
 const xpTable = [
   { event: 'task_success', xp: '14', when: 'a turn ends successfully, once per turn' },
@@ -88,10 +90,22 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
     <section class="section tint--amber">
       <h2>Two halves, one creature</h2>
       <p class="prose">
-        EvoPet is a fork of a pet project and a fork of a desktop app, joined at one idea. They
-        are separate trees with separate jobs, and both are needed for the thing to exist. The pet
-        half descends from TamaCodex by way of TamaHermes, which continues on its own; the shell
-        half descends from Petdex.
+        EvoPet joins two lineages at one idea: a PetDex-inspired desktop shell and the
+        TamaHermes/TamaCodex pet line. They are separate trees with separate jobs, and both are
+        needed for the thing to exist. <strong>EvoPet is not a fork of PetDex</strong> &mdash;
+        PetDex is credited as the shell's inspiration and homage, and nothing more.
+      </p>
+      <p class="prose">
+        The pet half descends from <a
+          href={TOOLCHAIN_REPO}
+          data-external
+          rel="noopener noreferrer">TamaCodex</a
+        >, the original upstream source for the pet-creation lineage, by way of <a
+          href={PET_REPO}
+          data-external
+          rel="noopener noreferrer">TamaHermes</a
+        >, the maintained pet-half predecessor, which continues on its own. The shell half
+        descends from <a href={SHELL_REPO} data-external rel="noopener noreferrer">PetDex</a>.
       </p>
       <div class="grid">
         <div class="card">
