@@ -16,6 +16,25 @@ same way it does in production.
 `dev:mock` is deprecated and intentionally exits. Use `dev:docker`, or
 `bun dev` if you are a maintainer with complete env vars.
 
+## Commit identity
+
+Every commit published here must be attributable to a public identity. An
+internal agent or tool name must never appear as the author, the committer, or a
+`Co-authored-by:` trailer — a valid mail address does not make the name
+publishable. A squash merge takes its author name from the GitHub account
+profile at merge time, so the profile name matters as much as local git config.
+
+Enable the guard in your clone once:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`identity-guard` runs the same check in CI on every PR and every push to `main`,
+so a clone without the hooks is caught rather than exempt. See
+`docs/commit-identity-guard.md` for what it refuses and how to configure the
+denylist (which is deliberately not committed).
+
 ## bun run dev:docker
 
 Real Postgres, real Redis, real Clerk OAuth. Same stack as production
