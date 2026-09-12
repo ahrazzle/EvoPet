@@ -1,5 +1,5 @@
 ---
-import { LEGACY_SHELL_REPO, REPOS, REPOS_PUBLIC, ROUTES } from '../data/nav';
+import { LEGACY_SHELL_REPO, REPOS, ROUTES } from '../data/nav';
 
 const year = new Date().getFullYear();
 const routes = ROUTES;
@@ -55,19 +55,6 @@ const routes = ROUTES;
       </p>
     </nav>
 
-    <p class="honesty">
-      {
-        !REPOS_PUBLIC && (
-          <>
-            <strong>EvoPet's own repository is not public yet.</strong> The EvoPet link above points
-            at where it will live; nothing on this site claims it is cloneable today. The Pet repo,
-            TamaCodex and Petdex are public.{' '}
-          </>
-        )
-      }
-      The library service is written and passes its own end-to-end round trip, but it is not
-      deployed, and no monitored takedown address exists for it yet — the site does not assert one.
-      Copyright {year}.
-    </p>
+    <p class="honesty">Copyright {year}.</p>
   </div>
 </footer>
