@@ -1,0 +1,11 @@
+#!/bin/sh
+# Pre-push half of the commit identity guard. See docs/commit-identity-guard.md.
+#
+# Blocks a push whose commits would publish a non-public author/committer
+# identity or a `Co-authored-by:` trailer naming one. Enable once per clone:
+#
+#   git config core.hooksPath .githooks
+#
+set -eu
+root=$(git rev-parse --show-toplevel)
+exec "$root/scripts/check-commit-identities.sh" --pre-push

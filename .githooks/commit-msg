@@ -1,0 +1,12 @@
+#!/bin/sh
+# Commit-message half of the commit identity guard.
+#
+# Runs before the commit object exists, so it sees the identity the commit is
+# about to be made under (including `git commit --author=...`) and the message's
+# `Co-authored-by:` trailers. See docs/commit-identity-guard.md.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+#
+set -eu
+root=$(git rev-parse --show-toplevel)
+exec "$root/scripts/check-commit-identities.sh" --message-file "$1"

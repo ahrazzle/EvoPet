@@ -1,0 +1,55 @@
+name: identity-guard
+
+# A published commit has already had to be rewritten once because its author
+# named an internal agent. Two things make that possible, and neither is local
+# git config: a squash merge mints the author name from the GitHub account
+# profile at merge time, and GitHub adds a `Co-authored-by:` trailer when the
+# squasher differs from the author. So a PR whose own commits are clean can
+# still land a commit naming an internal agent.
+#
+# This runs the same check as .githooks/ on the server, where no local
+# configuration can skip it, and on the pull-request merge commit as well as on
+# the pushed commit — which is exactly the identity the squash would publish.
+#
+# The denylist is read from the repository variable EVOPET_IDENTITY_DENYLIST
+# (Settings -> Secrets and variables -> Actions -> Variables) so the internal
+# names stay out of the repository itself.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: identity-guard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  identities:
+    name: Commit identity guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check the identities this change would publish
+        env:
+          EVOPET_IDENTITY_DENYLIST: ${{ vars.EVOPET_IDENTITY_DENYLIST }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -eu
+          if [ -n "${BASE_REF}" ]; then
+            base="origin/${BASE_REF}"
+          else
+            base="${BEFORE_SHA}"
+          fi
+          scripts/check-commit-identities.sh "--range=${base}..${GITHUB_SHA}"
