@@ -1,0 +1,1799 @@
+/* EvoPet site — one stylesheet, no framework.
+ *
+ * One theme, deliberately: dark only. The pet is a dark-desktop companion and
+ * the shell it floats in is dark, so the site matching it is honest rather than
+ * decorative — and a single palette is the one that can be contrast-checked
+ * once instead of twice. It is dark *with chroma*: indigo and plum surfaces
+ * (§2), warm ink, candy-bright accents, and the pixel/technical character kept.
+ *
+ * Type is the system stack. No font is fetched from anywhere: no @font-face, no
+ * CDN, no satellite request. No analytics either.
+ *
+ * Rhythm (§1) is one scale — --space-1..9 — with a single big step,
+ * --section-gap, between sections. Every vertical value on the sheet resolves
+ * through those tokens, so the page alternates instead of running flat.
+ */
+
+:root {
+  /* surfaces: indigo and plum, never neutral grey (§2). Each has non-zero HSL
+   * saturation, and --line clears the 1.5:1 bar against all of them. */
+  --bg: #141026;
+  --surface: #1e1836;
+  --surface-2: #29204a;
+  --surface-3: #382c60;
+  --line: rgba(255, 255, 255, 0.16);
+  --line-strong: rgba(255, 255, 255, 0.3);
+
+  /* ink: a warm off-white and two muted violets */
+  --ink: #fff6ee;
+  --ink-muted: #c9bde4;
+  --ink-faint: #a99cc9;
+
+  /* accents: candy-bright. A primary CTA is tangerine and its label is the
+   * dark plum, which is what keeps the pair at 8.8:1. */
+  --accent: #ff9c3d;
+  --accent-soft: rgba(255, 156, 61, 0.14);
+  --accent-ink: #1a1024;
+  --accent-2: #7be495;
+  --accent-3: #5cc8ff;
+  --accent-4: #ff7ac0;
+  --accent-5: #ffe066;
+  --warn: #ff5b2e;
+
+  /* the logo's squircle blue: chrome only — the active-nav inset and the
+   * wordmark rule. Blue *text* uses --accent-3, never this (§3). */
+  --brand: #4a76f5;
+
+  /* the growth ramp, keeping the shipped XP bar's hue identity */
+  --stage-egg: #ffb524;
+  --stage-hatchling: #5fe08a;
+  --stage-child: #4fc3f7;
+  --stage-teen: #f2608c;
+  --stage-adult: #ffe566;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  /* rhythm (§1): the only spacing values this sheet uses. Section-to-section
+   * runs on --section-gap, everything inside a section runs on a --space step. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+  --section-gap: clamp(72px, 9vw, 112px);
+  --pad-card: var(--space-5);
+  --pad-card-lg: var(--space-6);
+  --grid-gap: var(--space-5);
+  /* The two off-scale values §1 asks for, composed out of the scale so no bare
+   * number reaches a rule: 20px for cards and detail panels at ≤720px and on
+   * the library page, 72px for the gap between guides. */
+  --pad-card-sm: calc(var(--space-4) + var(--space-1));
+  --gap-guide: calc(var(--space-8) + var(--space-2));
+  --measure: 66ch;
+
+  /* Layered card fill: the section's tint (§2), a soft top sheen, the warmed
+   * grid texture, then the base gradient. Never a flat colour. A section sets
+   * --tint through one of the .tint--* classes below; every other panel falls
+   * back to the transparent tint. */
+  --tint: rgba(255, 255, 255, 0);
+  --panel-bg: linear-gradient(180deg, var(--tint), rgba(255, 255, 255, 0) 54%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 42%),
+    repeating-linear-gradient(0deg, rgba(255, 214, 170, 0.05) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, rgba(255, 214, 170, 0.05) 0 1px, transparent 1px 24px),
+    linear-gradient(158deg, var(--surface-3) 0%, var(--surface) 54%, var(--bg) 100%);
+  --panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 18px 32px -24px rgba(0, 0, 0, 0.9);
+
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Section tints (§2): each block carries ~10% of one accent, so a page reads as
+ * a warm rhythm instead of one grey column. A tint class sets --tint and
+ * nothing else — every panel inside it, cards and states alike, picks it up.
+ * Colour is decoration here, never the carrier of meaning: the content under a
+ * tint is already labelled in text. */
+.tint--mint {
+  --tint: rgba(123, 228, 149, 0.11);
+}
+
+.tint--sky {
+  --tint: rgba(92, 200, 255, 0.11);
+}
+
+.tint--rose {
+  --tint: rgba(255, 122, 192, 0.11);
+}
+
+.tint--amber {
+  --tint: rgba(255, 156, 61, 0.11);
+}
+
+.tint--lemon {
+  --tint: rgba(255, 224, 102, 0.1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+  /* Anchor targets clear the sticky header (§5: 96px). */
+  scroll-padding-top: 96px;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 18px;
+  /* §1: body 1.62, lede 1.55 — a tighter measure that reads better at 66ch. */
+  line-height: 1.62;
+  overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- focus and skip ------------------------------------------------------- */
+
+:where(a, button, input, select, summary, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 12px 18px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 0 0 var(--radius) 0;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+/* --- layout --------------------------------------------------------------- */
+
+.wrap {
+  width: min(100% - 48px, 1200px);
+  margin-inline: auto;
+}
+
+main {
+  display: block;
+  padding-bottom: var(--space-9);
+}
+
+/* A page whose first block is a plain heading clears the sticky header on one
+ * --space-8 step. */
+.page {
+  padding-block-start: var(--space-8);
+}
+
+/* Section-to-section is the page's one big step. Everything inside a section is
+ * a --space step, so the rhythm alternates instead of the flat near-equal gaps
+ * the old 64px margin plus inline 56px padding produced (handoff §1). */
+.section {
+  margin-block-start: var(--section-gap);
+}
+
+/* The page head and the first block under it: one smaller step, so the big gap
+ * stays the between-sections signal. */
+.lede + .section,
+.docs-body .lede + * {
+  margin-block-start: var(--space-7);
+}
+
+.prose {
+  max-width: var(--measure);
+}
+
+.prose > * + * {
+  margin-top: var(--space-5);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.2;
+  text-wrap: balance;
+  margin: 0;
+  font-weight: 600;
+}
+
+h1 {
+  font-size: clamp(2.25rem, 5vw, 3.5rem);
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-5);
+}
+
+h2 {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-4);
+}
+
+h3 {
+  font-size: 1.125rem;
+  margin-bottom: var(--space-3);
+}
+
+h4 {
+  font-size: 0.75rem;
+  margin-bottom: var(--space-1);
+  font-family: var(--mono);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+p {
+  margin: 0 0 var(--space-5);
+  text-wrap: pretty;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  color: var(--ink);
+}
+
+ul,
+ol {
+  margin: 0 0 var(--space-5);
+  padding-left: var(--space-5);
+}
+
+/* §1: list rhythm 8 → 12. */
+li + li {
+  margin-top: var(--space-3);
+}
+
+strong {
+  font-weight: 600;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: var(--space-7) 0;
+}
+
+/* Mono is the label voice: 12px uppercase, tracked, never bold-heavy. Numbers
+ * live here too, so a numeral is never confused with prose. */
+.eyebrow,
+.mono,
+.num,
+code,
+kbd {
+  font-family: var(--mono);
+}
+
+.eyebrow,
+.mono-label {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.eyebrow {
+  color: var(--accent);
+}
+
+.num {
+  font-size: 0.92em;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- panels: every block on this site is a contained card ---------------- */
+
+.panel,
+.card,
+.pet-card,
+.guide-card,
+.state,
+.skeleton,
+.note,
+.pet-detail,
+.docs-side,
+.table-scroll,
+pre,
+.diagram,
+.gate-control {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-bg);
+  box-shadow: var(--panel-shadow);
+}
+
+/* The grid texture is masked so it fades out of the middle of a panel instead
+ * of tiling edge-to-edge like graph paper. */
+.panel::before,
+.card::before,
+.pet-card::before,
+.guide-card::before,
+.state::before,
+.diagram::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+      0deg,
+      rgba(255, 214, 170, 0.05) 0 1px,
+      transparent 1px 24px
+    ),
+    repeating-linear-gradient(90deg, rgba(255, 214, 170, 0.05) 0 1px, transparent 1px 24px);
+  -webkit-mask-image: radial-gradient(130% 100% at 50% 0%, #000 0%, transparent 72%);
+  mask-image: radial-gradient(130% 100% at 50% 0%, #000 0%, transparent 72%);
+}
+
+.panel > *,
+.card > *,
+.pet-card > *,
+.guide-card > *,
+.state > *,
+.diagram > * {
+  position: relative;
+}
+
+.card {
+  padding: var(--pad-card);
+}
+
+.panel {
+  padding: var(--pad-card-lg);
+}
+
+.card h3,
+.panel h3 {
+  margin-top: 0;
+}
+
+.card p:last-child,
+.panel p:last-child {
+  margin-bottom: 0;
+}
+
+.card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: border-color 140ms var(--ease), transform 140ms var(--ease);
+}
+
+.card-link:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.card-link:hover h3 {
+  color: var(--accent);
+}
+
+.grid {
+  display: grid;
+  gap: var(--grid-gap);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  /* §1: heading (or its prose) → block is one --space-6 step. Adjacent margins
+   * collapse, so this reads as 32px, not 56. */
+  margin-block-start: var(--space-6);
+}
+
+.grid--tight {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+/* --- header --------------------------------------------------------------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(20, 16, 38, 0.96), rgba(20, 16, 38, 0.84));
+  backdrop-filter: blur(10px);
+}
+
+.site-header .wrap {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 68px;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-weight: 600;
+  font-size: 17px;
+  color: var(--ink);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+
+.brand:hover {
+  color: var(--ink);
+}
+
+/* §3: the wordmark's rule is the logo squircle's blue — chrome, not text. */
+.brand-word {
+  text-decoration: underline;
+  text-decoration-color: var(--brand);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+}
+
+/* The supplied mark is an opaque 256×256 PNG: a white pixel egg on a blue
+ * gradient squircle with a black field behind it. §3 keeps the artwork as it is
+ * and clips it instead: 22% matches the squircle, and the black container makes
+ * the clipped corners seamless rather than seating the mark on a tinted plate. */
+.brand-mark {
+  width: 24px;
+  height: 24px;
+  display: block;
+  border-radius: 22%;
+  background: #000;
+}
+
+/* The same treatment at 96px, for a documentation masthead. No instance of it
+ * exists yet: nothing in the markup is 96px today, so this is the rule that
+ * instance will use rather than a size in use. */
+.brand-mark--lg {
+  width: min(96px, 100%);
+  height: auto;
+}
+
+.site-footer .footer-mark-row {
+  margin: 0 0 var(--space-3);
+}
+
+.site-footer .footer-mark {
+  width: 44px;
+  height: 44px;
+  display: block;
+  border-radius: 22%;
+  background: #000;
+}
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.site-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.site-nav a:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.site-nav a[aria-current="page"] {
+  color: var(--ink);
+  background: var(--surface-2);
+  box-shadow: inset 0 -2px 0 var(--brand);
+}
+
+.site-nav .nav-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--line);
+  margin: 0 6px;
+}
+
+/* External links carry the arrow, per the handoff's interaction rules. */
+.site-nav a[data-external]::after,
+a[data-external]::after {
+  content: "↗";
+  font-size: 0.85em;
+  margin-left: 4px;
+  color: var(--ink-muted);
+}
+
+/* --- footer --------------------------------------------------------------- */
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  padding: var(--space-7) 0;
+  color: var(--ink-muted);
+  font-size: 15px;
+}
+
+.site-footer .wrap {
+  display: grid;
+  gap: var(--space-6);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.site-footer nav {
+  display: flex;
+  gap: var(--space-4) var(--space-5);
+  flex-wrap: wrap;
+}
+
+/* The footer's own paragraphs are spaced here rather than inline. */
+.site-footer .footer-about p {
+  margin: 0;
+}
+
+.site-footer .footer-about p + p {
+  margin-block-start: var(--space-3);
+}
+
+/* The lineage, in prose: TamaHermes is named here and nowhere as a button. */
+.site-footer .lineage {
+  margin: var(--space-4) 0 0;
+  max-width: var(--measure);
+}
+
+.site-footer .lineage code {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink);
+}
+
+.site-footer a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.site-footer h2 {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  margin-bottom: var(--space-3);
+}
+
+.site-footer ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.site-footer .honesty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  max-width: var(--measure);
+}
+
+/* --- hero ----------------------------------------------------------------- */
+
+.hero {
+  position: relative;
+  overflow: clip;
+  padding: var(--space-9) 0 var(--space-8);
+  border-bottom: 1px solid var(--line);
+  /* Never a flat colour wall: three washes of the cheerful accents over the
+   * indigo canvas. */
+  background: radial-gradient(120% 90% at 12% 0%, rgba(255, 156, 61, 0.2), transparent 58%),
+    radial-gradient(90% 80% at 92% 12%, rgba(92, 200, 255, 0.16), transparent 62%),
+    radial-gradient(70% 60% at 50% 100%, rgba(123, 228, 149, 0.1), transparent 70%),
+    linear-gradient(180deg, var(--surface) 0%, var(--bg) 78%);
+}
+
+.hero .wrap {
+  display: grid;
+  gap: var(--space-7);
+  align-items: center;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+}
+
+.hero h1 {
+  max-width: 24ch;
+  margin-top: var(--space-4);
+}
+
+.hero .lede {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  max-width: 60ch;
+  margin-top: var(--space-5);
+}
+
+/* §1: CTA row 12 → 14 across, 12 down, 32 → 40 above (§5 puts the repo row
+ * underneath it, so the hero no longer carries five buttons). */
+.hero-actions {
+  display: flex;
+  gap: var(--space-3) var(--space-4);
+  flex-wrap: wrap;
+  margin-top: var(--space-7);
+}
+
+/* §5: the four repository links, on their own rule below the two CTAs. */
+.repo-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  margin-block-start: var(--space-5);
+  padding-block-start: var(--space-5);
+  border-top: 1px solid var(--line);
+  font-size: 15px;
+}
+
+.repo-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink-muted);
+}
+
+.repo-links a:hover {
+  color: var(--ink);
+}
+
+.hero-art {
+  position: relative;
+  padding: var(--pad-card-lg);
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  transform: translate3d(var(--px, 0px), var(--py, 0px), 0);
+  transition: transform 220ms var(--ease);
+}
+
+.hero-art img {
+  width: min(100%, 320px);
+  height: auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.55));
+}
+
+.hero-art figcaption {
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+/* One ambient element, maximum: a slow gradient drift behind the hero art. */
+.ambient {
+  position: absolute;
+  inset: -20% -10% auto -10%;
+  height: 120%;
+  z-index: 0;
+  pointer-events: none;
+  background: conic-gradient(
+    from 200deg at 50% 40%,
+    rgba(255, 156, 61, 0.12),
+    rgba(92, 200, 255, 0.11),
+    rgba(123, 228, 149, 0.1),
+    rgba(255, 122, 192, 0.1),
+    rgba(255, 156, 61, 0.12)
+  );
+  filter: blur(38px);
+  opacity: 0.75;
+  animation: drift 42s linear infinite alternate;
+}
+
+@keyframes drift {
+  from {
+    transform: translate3d(-2%, -1%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2%, 2%, 0) scale(1.08);
+  }
+}
+
+.hero > .wrap {
+  position: relative;
+  z-index: 1;
+}
+
+/* --- buttons and chips ---------------------------------------------------- */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)) var(--surface-2);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 140ms var(--ease), background-color 140ms var(--ease),
+    transform 140ms var(--ease);
+}
+
+.button:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+.button:active {
+  transform: translateY(1px);
+}
+
+/* The tangerine CTA keeps the same sheen idiom as the plain button: a white
+ * overlay over the accent, so no extra colour token is needed. */
+.button--primary {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0))
+    var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.button--primary:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.06))
+    var(--accent);
+  color: var(--accent-ink);
+}
+
+.button[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink-muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.chip:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+.chip[aria-pressed="true"] {
+  color: var(--ink);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Capability is text + shape, never colour alone. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.badge::before {
+  /* shape, not colour: a filled diamond for Evolving, a hollow square for Stock */
+  font-size: 11px;
+  line-height: 1;
+}
+
+.badge--capable {
+  border-color: rgba(123, 228, 149, 0.55);
+  color: var(--accent-2);
+}
+
+.badge--capable::before {
+  content: "◆";
+}
+
+.badge--stock {
+  color: var(--ink-muted);
+}
+
+.badge--stock::before {
+  content: "▢";
+}
+
+.chipset {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* --- code and tables ------------------------------------------------------ */
+
+code {
+  font-size: 0.9em;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+  /* Inline code carries unbreakable tokens (publish keys, JSON blobs, long
+     paths). Without this, one of them widens the document past the viewport at
+     390px and `overflow-x: clip` on the body then cuts it off unreachably. */
+  overflow-wrap: anywhere;
+}
+
+pre {
+  border-radius: var(--radius);
+  padding: var(--pad-card-sm);
+  overflow-x: auto;
+  margin: 0 0 var(--space-6);
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+
+pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  /* Code blocks keep their own horizontal scroll (see `pre`), so they must not
+     be force-wrapped by the rule above. */
+  overflow-wrap: normal;
+}
+
+.copy-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin: calc(-1 * var(--space-3)) 0 var(--space-6);
+}
+
+.copy-row .copy-status {
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--stage-hatchling);
+  min-width: 6ch;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  margin: 0 0 var(--space-6);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 15px;
+}
+
+caption {
+  text-align: left;
+  padding: var(--space-4) var(--space-5);
+  color: var(--ink-muted);
+  font-size: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* §1: 12/18 → 14/18, expressed as the nearest steps of the scale. */
+th,
+td {
+  text-align: left;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+th {
+  background: rgba(255, 255, 255, 0.03);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+td.num,
+th.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.sources {
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+/* A source line that is a caption rather than a closing rule. */
+.sources--inline {
+  margin-block-start: var(--space-2);
+  padding-block-start: 0;
+  border-top: 0;
+}
+
+/* --- callouts ------------------------------------------------------------- */
+
+.note {
+  border-left: 3px solid var(--accent-3);
+  padding: var(--space-4) var(--space-5);
+  margin: var(--space-5) 0;
+  max-width: var(--measure);
+}
+
+.note--warn {
+  border-left-color: var(--warn);
+}
+
+.note--honest {
+  border-left-color: var(--accent);
+}
+
+.note > :last-child {
+  margin-bottom: 0;
+}
+
+.note-title {
+  display: block;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  margin-bottom: var(--space-2);
+}
+
+/* --- docs shell ----------------------------------------------------------- */
+
+.docs {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: var(--space-8);
+  padding-block-start: var(--space-8);
+  align-items: start;
+}
+
+.docs-side {
+  position: sticky;
+  top: 92px;
+  padding: var(--pad-card-sm) var(--space-4);
+  font-size: 14px;
+  line-height: 1.55;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+.docs-side h2 {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  margin: 0 0 10px;
+}
+
+.docs-side ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-6);
+}
+
+.docs-side ul:last-child {
+  margin-bottom: 0;
+}
+
+.docs-side li + li {
+  margin-top: var(--space-1);
+}
+
+.docs-side a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+
+.docs-side a:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.docs-side a[aria-current="true"] {
+  color: var(--ink);
+  background: var(--surface-2);
+  box-shadow: inset 2px 0 0 var(--brand);
+}
+
+.docs-body {
+  min-width: 0;
+}
+
+.docs-group {
+  scroll-margin-top: 96px;
+}
+
+.docs-group + .docs-group {
+  margin-block-start: var(--space-9);
+  padding-block-start: var(--space-7);
+  border-top: 1px solid var(--line);
+}
+
+/* Sections own the space above them (§1: 44 → 56, expressed as the nearest
+ * step). The last one in a group is followed by .sources, which owns its own. */
+.docs-section {
+  scroll-margin-top: 96px;
+  margin-block-start: var(--space-8);
+}
+
+.docs-section > h3 {
+  margin-bottom: 12px;
+}
+
+.lede {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  max-width: var(--measure);
+}
+
+.docs-kicker {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: var(--space-3);
+}
+
+.anchor-links {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+  font-size: 15px;
+}
+
+.anchor-links a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* At ≤720 the sidebar becomes a disclosure sheet rather than a column. */
+.docs-side summary {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .docs {
+    grid-template-columns: 210px minmax(0, 1fr);
+    gap: var(--space-6);
+  }
+}
+
+@media (max-width: 720px) {
+  .docs {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-5);
+  }
+
+  .docs-side {
+    position: static;
+    max-height: none;
+    padding: var(--space-2) var(--space-4);
+  }
+
+  .docs-side summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 44px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+    list-style: none;
+  }
+
+  .docs-side summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .docs-side summary::after {
+    content: "▾";
+    color: var(--accent);
+  }
+
+  .docs-side[open] summary::after {
+    content: "▴";
+  }
+}
+
+/* --- guides --------------------------------------------------------------- */
+
+.guide-card {
+  padding: var(--pad-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.guide-card h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.guide-card h2 a {
+  text-decoration: none;
+}
+
+.guide-card h2 a:hover {
+  color: var(--accent);
+}
+
+/* The card grid on /guides: same rhythm as .grid, but as a list. */
+.guide-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-7) 0 0;
+  display: grid;
+  gap: var(--grid-gap);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+/* Numbered steps, set as a list of bordered blocks rather than as an <ol>
+ * counter: the step title carries the number. */
+.guide-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-5);
+}
+
+.guide-card h3 {
+  margin: 0;
+}
+
+.guide-card p {
+  color: var(--ink-muted);
+  margin: 0;
+  font-size: 15px;
+}
+
+.guide-meta {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: var(--space-3);
+}
+
+/* §5: 72px between guides, one step above them all, so the first guide is not
+ * closer to its card list than the guides are to each other. */
+.guide {
+  scroll-margin-top: 96px;
+  margin-block-start: var(--gap-guide);
+}
+
+.guide-step {
+  border-left: 2px solid var(--line-strong);
+  padding-left: var(--space-5);
+  margin: 0 0 var(--space-5);
+}
+
+.guide-step h4 {
+  margin: 0 0 var(--space-2);
+  color: var(--ink);
+}
+
+/* §5: mint and rose plates, not grey ones. The label still carries the meaning
+ * ("What a correct run gives you" / "How it fails"); the tint is decoration. */
+.expected,
+.failure {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  margin: 0 0 var(--space-4);
+}
+
+.expected {
+  border-color: rgba(123, 228, 149, 0.34);
+  border-left: 3px solid var(--accent-2);
+  background: linear-gradient(180deg, rgba(123, 228, 149, 0.13), rgba(123, 228, 149, 0.04));
+}
+
+.failure {
+  border-color: rgba(255, 122, 192, 0.34);
+  border-left: 3px solid var(--accent-4);
+  background: linear-gradient(180deg, rgba(255, 122, 192, 0.13), rgba(255, 122, 192, 0.04));
+}
+
+.expected p,
+.failure p {
+  margin: 0;
+}
+
+.expected .note-title,
+.failure .note-title {
+  margin-bottom: 6px;
+}
+
+/* --- gate control --------------------------------------------------------- */
+
+.gate-control {
+  padding: var(--pad-card-lg);
+  margin: var(--space-5) 0 var(--space-5);
+}
+
+.gate-fields {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin-bottom: var(--space-5);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.field label {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+input[type="number"],
+input[type="search"] {
+  font: inherit;
+  font-size: 15px;
+  min-height: 44px;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+input[type="search"] {
+  min-width: min(100%, 300px);
+}
+
+input[aria-invalid="true"] {
+  border-color: var(--warn);
+  box-shadow: inset 0 0 0 1px var(--warn);
+}
+
+input::placeholder {
+  color: var(--ink-faint);
+}
+
+.gate-actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.gate-message {
+  margin-top: var(--space-4);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+  min-height: 1.6em;
+}
+
+.gate-message[data-state="refused"] {
+  color: var(--warn);
+}
+
+.gate-message[data-state="ok"] {
+  color: var(--stage-hatchling);
+}
+
+.gate-table th[scope="row"] {
+  font-family: var(--mono);
+  font-weight: 500;
+}
+
+/* --- library -------------------------------------------------------------- */
+
+/* §1: controls 28/10 → 32/16, status 14/0/26 → 16/0/32. */
+.library-controls {
+  display: flex;
+  gap: var(--space-4) var(--space-6);
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin: var(--space-6) 0 var(--space-4);
+}
+
+.status-line {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-muted);
+  min-height: 1.6em;
+  margin: var(--space-4) 0 var(--space-6);
+}
+
+/* The index's own line sits directly under the status line, not a step below. */
+.status-line--tight {
+  margin-block-start: calc(-1 * var(--space-3));
+}
+
+.pet-grid {
+  display: grid;
+  gap: var(--grid-gap);
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.pet-card {
+  padding: var(--pad-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.pet-head {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+/* §5: thumbs 64 → 72, and the skeletons copy this size exactly. */
+.pet-thumb {
+  width: 72px;
+  height: 72px;
+  flex: none;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.pet-thumb--missing {
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-muted);
+  text-align: center;
+  line-height: 1.25;
+}
+
+.pet-name {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.pet-slug {
+  display: block;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  margin-top: 4px;
+}
+
+.pet-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.pet-links {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 15px;
+  margin-top: auto;
+}
+
+.pet-links a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.pet-detail {
+  padding: var(--pad-card-sm);
+  margin: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* The detail panel's rows are a definition list, laid out here rather than from
+ * inline styles in the render script. */
+.pet-detail dl {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.pet-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pet-detail img {
+  width: 100%;
+  max-width: 260px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  image-rendering: pixelated;
+}
+
+.gates {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gates li {
+  margin: 0;
+}
+
+.gate-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.pet-install {
+  font-size: 14px;
+  color: var(--ink-muted);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+  margin: 0;
+}
+
+/* --- states --------------------------------------------------------------- */
+
+.state {
+  padding: var(--pad-card);
+  max-width: var(--measure);
+}
+
+.state h2 {
+  font-size: 1.15rem;
+  margin-bottom: var(--space-3);
+}
+
+.state--error {
+  border-color: rgba(255, 91, 46, 0.55);
+  border-left: 3px solid var(--warn);
+}
+
+.state--empty {
+  border-left: 3px solid var(--accent);
+}
+
+.state p:last-child {
+  margin-bottom: 0;
+}
+
+.skeleton {
+  padding: var(--pad-card);
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+/* The skeleton copies the real card's padding, gap and thumb size exactly. */
+.skeleton-body {
+  flex: 1;
+}
+
+.skeleton-bar {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-bar--title {
+  width: 42%;
+}
+
+.skeleton-bar--sub {
+  width: 66%;
+  margin-top: var(--space-2);
+}
+
+.skeleton-box {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  flex: none;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* --- diagrams ------------------------------------------------------------- */
+
+.diagram-scroll {
+  overflow-x: auto;
+  margin: var(--space-5) 0;
+}
+
+.diagram {
+  display: block;
+  width: 100%;
+  min-width: 560px;
+  height: auto;
+  padding: var(--space-3);
+}
+
+.diagram text {
+  font-family: var(--font);
+}
+
+.diagram text.mono,
+.diagram text[data-mono] {
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+}
+
+/* --- growth ramp ---------------------------------------------------------- */
+
+.ramp {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-6);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.ramp li {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 130px;
+  gap: var(--space-4);
+  align-items: center;
+  font-size: 14px;
+  margin: 0;
+}
+
+.ramp-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.ramp-bar {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.ramp-fill {
+  display: block;
+  height: 100%;
+}
+
+.ramp-label {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* --- responsive ----------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  body {
+    font-size: 17px;
+  }
+
+  .hero {
+    padding: var(--space-8) 0 var(--space-7);
+  }
+
+  .hero .wrap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hero-art {
+    order: 2;
+  }
+}
+
+@media (max-width: 720px) {
+  .site-header .wrap {
+    gap: var(--space-3);
+    padding-block: var(--space-2);
+  }
+
+  .site-nav {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  /* §1: cards tighten to --pad-card-sm at ≤720px, and the grids to one step
+   * down, so the mobile rhythm stays alternating rather than flat. */
+  .panel,
+  .card,
+  .pet-card,
+  .guide-card,
+  .skeleton,
+  .state,
+  .hero-art {
+    padding: var(--pad-card-sm);
+  }
+
+  .grid,
+  .pet-grid,
+  .guide-list {
+    gap: var(--space-4);
+  }
+
+  .ramp li {
+    grid-template-columns: 92px minmax(0, 1fr);
+  }
+
+  .ramp-label {
+    grid-column: 2;
+    text-align: left;
+  }
+}
+
+@media (max-width: 560px) {
+  .wrap,
+  .hero .wrap {
+    width: min(100% - 32px, 1200px);
+  }
+
+  body {
+    font-size: 16.5px;
+  }
+
+  .hero-actions .button,
+  .gate-actions .button {
+    width: 100%;
+  }
+}
+
+/* --- reduced motion ------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .ambient,
+  .hero-art {
+    animation: none;
+    transform: none;
+  }
+
+  .card-link:hover {
+    transform: none;
+  }
+}

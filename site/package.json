@@ -1,0 +1,19 @@
+{
+  "name": "evopet-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The EvoPet project site: what EvoPet is, the docs, the guides, the GitHub link, and the pet library page.",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "astro": "^7.3.2"
+  }
+}

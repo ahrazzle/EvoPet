@@ -1,0 +1,150 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { LIBRARY_API_DEFAULT } from '../../data/nav';
+
+// The endpoint is a public URL, baked in at build time — never a secret, and
+// never read from anything the browser has to authenticate with.
+const endpoint =
+  (import.meta.env.PUBLIC_EVOPET_LIBRARY_ENDPOINT as string | undefined) || LIBRARY_API_DEFAULT;
+const skeletons = [0, 1, 2, 3, 4, 5];
+---
+
+<BaseLayout
+  title="Library"
+  description="Browse every pet published to the EvoPet library: thumbnails, slugs, versions, and whether a package is evolution-capable with the gates it declares."
+>
+  <div class="wrap page">
+    <h1>Pet library</h1>
+    <p class="lede">
+      Published packages, read live from the library service's public index. A package is
+      <strong>Evolving</strong> when its <code>pet.json</code> carries an object-valued
+      <code>evopet</code> block, and <strong>Stock</strong> when it does not — the same test the
+      desktop app makes, in the same words. Nothing on this page is cached, counted by hand, or
+      drawn without the API having sent it.
+    </p>
+
+    <section class="section tint--sky" data-library data-endpoint={endpoint}>
+      <div class="library-controls">
+        <div class="field">
+          <label for="library-search">Filter by slug or name</label>
+          <input
+            id="library-search"
+            type="search"
+            data-search
+            placeholder="tamahermes"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
+        <div class="chipset" role="group" aria-label="Filter by capability">
+          <button class="chip" type="button" data-filter="all" aria-pressed="true">All</button>
+          <button class="chip" type="button" data-filter="capable" aria-pressed="false">
+            Evolving
+          </button>
+          <button class="chip" type="button" data-filter="stock" aria-pressed="false">Stock</button>
+        </div>
+      </div>
+
+      <p class="status-line" role="status" aria-live="polite" data-status>
+        Reading the library index…
+      </p>
+      <p class="status-line status-line--tight" data-index-meta></p>
+
+      <noscript>
+        <div class="state state--empty">
+          <h2>This page needs JavaScript</h2>
+          <p>
+            The library is read in the browser from the public index at
+            <code>{endpoint}/api/manifest</code>, so with scripts disabled there is nothing to
+            render — and this page will not show an empty grid as if the library were empty.
+          </p>
+        </div>
+      </noscript>
+
+      <ul class="pet-grid" data-skeletons aria-hidden="true">
+        {
+          skeletons.map(() => (
+            <li class="skeleton">
+              <span class="skeleton-box"></span>
+              <span class="skeleton-body">
+                <span class="skeleton-bar skeleton-bar--title"></span>
+                <span class="skeleton-bar skeleton-bar--sub"></span>
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+
+      <div class="state state--error" data-error hidden>
+        <h2>The library could not be reached</h2>
+        <p data-error-reason>
+          No pets are listed, because the index did not answer. This is shown instead of an empty
+          library so the two can never be confused.
+        </p>
+        <p>
+          A site on a different origin than the service cannot read it: the library sends no CORS
+          headers, so the deployment has to put this site and the service on one origin, or give
+          the service an allowlist. That decision is still open.
+        </p>
+        <div class="gate-actions">
+          <button class="button" type="button" data-retry>Retry</button>
+          <a class="button" href="/docs#endpoints">The endpoints</a>
+        </div>
+      </div>
+
+      <div class="state state--empty" data-empty hidden>
+        <h2>No pets published yet</h2>
+        <p>
+          The index answered, and it is empty: nobody has published a package to this service. That
+          is the honest state of a young library, not an error.
+        </p>
+        <div class="gate-actions">
+          <a class="button" href="/guides#publish-a-pet">Publish a pet</a>
+          <a class="button" href="/docs#library">How publishing works</a>
+        </div>
+      </div>
+
+      <div class="state" data-filtered-empty hidden>
+        <h2>No pets match</h2>
+        <p>Every published pet was filtered out by the current search or capability filter.</p>
+        <div class="gate-actions">
+          <button class="button" type="button" data-clear-filters>Clear filters</button>
+        </div>
+      </div>
+
+      <p class="status-line" data-truncated hidden></p>
+      <ul class="pet-grid" data-grid hidden></ul>
+    </section>
+
+    <section class="section tint--mint">
+      <h2>What this page deliberately does not do</h2>
+      <ul class="prose">
+        <li>
+          <strong>No publishing.</strong> There is no upload form, no key field and no account
+          here. Publishing goes through the service's own bearer-key endpoint, run by whoever owns
+          the key.
+        </li>
+        <li>
+          <strong>No install button.</strong> <code>petdex://</code> install links still resolve to
+          petdex.dev, and the desktop app's catalogue manifest is a compiled constant, so a link
+          here would imply an install path that does not exist yet.
+        </li>
+        <li>
+          <strong>No gauges.</strong> The page shows what a published package <em>is</em>, not how
+          anyone's pet is doing: a pet's ledger is per-profile and stays on the machine that grew
+          it.
+        </li>
+        <li>
+          <strong>No counters of our own.</strong> Every count on this page comes from the index's
+          own <code>total</code> and <code>capableTotal</code> fields.
+        </li>
+      </ul>
+    </section>
+  </div>
+</BaseLayout>
+
+<script>
+  import { initLibrary } from '../../scripts/library';
+
+  initLibrary();
+</script>

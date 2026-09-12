@@ -1,0 +1,312 @@
+---
+// "Library & publishing" — the reference group of /docs.
+//
+// Sourced from evopet-library/README.md and src/manifest.ts, and from the
+// desktop app's own settings module for the auto-upload switch. No hosted
+// deployment is claimed: the service is written and passes its round trip, and
+// it is not deployed.
+import { DOC_GROUPS, type DocGroup } from '../../data/nav';
+
+const group = DOC_GROUPS.find((entry) => entry.id === 'library') as DocGroup;
+
+const endpoints: [string, string, string, string][] = [
+  ['GET', '/api/health', '—', 'liveness, storage mode, public base URL'],
+  ['GET', '/api/desktop/library', 'bearer', 'the app’s library response'],
+  ['POST', '/api/pets/publish', 'bearer', 'publish a package (multipart)'],
+  ['GET', '/api/manifest', '—', 'the public index, approved pets only'],
+  ['GET', '/api/pets/<slug>', '— / owner', 'the index record'],
+  ['GET', '/api/pets/<slug>/pet.json', '— / owner', 'the published pet.json, verbatim'],
+  ['GET', '/api/pets/<slug>/spritesheet.webp|png', '— / owner', 'the published atlas'],
+  ['GET', '/api/pets/<slug>/thumbnail.webp|png', '— / owner', 'the preview image'],
+  ['POST', '/api/pets/<slug>/catch', 'bearer', 'record “downloaded from the catalogue”'],
+  ['POST', '/api/admin/pets/<slug>/status', 'operator', 'set pending | approved | rejected'],
+  ['DELETE', '/api/pets/<slug>', 'owner / operator', 'remove a package, bytes included'],
+  ['GET', '/api/admin/deletions', 'operator', 'the deletion audit log'],
+];
+
+const transitions: [string, string, string][] = [
+  ['—', 'approved', 'publish, no flag (the default)'],
+  ['—', 'pending', 'publish with public=false'],
+  ['pending', 'approved', 'owner re-publishing, or an operator'],
+  ['approved', 'pending', 'owner re-publishing with public=false, or an operator (unpublish)'],
+  ['pending / approved', 'rejected', 'operator'],
+  ['rejected', 'pending / approved', 'owner re-publishing, or an operator'],
+  ['any', 'gone', 'DELETE, owner (own pet) or operator (any pet)'],
+];
+
+const issueKey = `npm run key:issue -- --email you@example.com --username you --display "owner key"
+npm run key:revoke -- --id <id>`;
+
+const publishCurl = `curl -X POST "https://<host>/api/pets/publish" \\
+  -H "Authorization: Bearer <key>" \\
+  -F "pet.json=@pet.json" \\
+  -F "spritesheet.webp=@spritesheet.webp" \\
+  -F "thumbnail.png=@thumbnail.png" \\
+  -F "public=true"`;
+
+const keychainBlob = `security add-generic-password -U -s dev.petdex.desktop-native -a oauth \\
+  -w '{"access_token":"<key>","refresh_token":""}'
+PETDEX_LIBRARY_URL=https://<host>/api/desktop/library`;
+
+const deleteCurl = `curl -X DELETE "https://<host>/api/pets/<slug>?reason=<complaint%20ref>" \\
+  -H "Authorization: Bearer <operator key>"`;
+---
+
+<section class="docs-group" id={group.id}>
+  <h2>{group.label}</h2>
+  <p class="lede">{group.summary}</p>
+
+  <div class="note note--honest">
+    <span class="note-title">Not deployed</span>
+    <p>
+      The library service is written, and passes its own end-to-end round trip. It is not deployed:
+      the base URL the site calls is a placeholder until someone chooses the host, which also has to
+      be chosen <em>before</em> the first publish because every URL in the index is absolute and
+      issued from that value. Until then the library page says it cannot reach the library, which is
+      the honest answer rather than an empty shelf.
+    </p>
+  </div>
+
+  <section class="docs-section" id="endpoints">
+    <h3>Endpoints</h3>
+    <p>
+      One service, no database, no auth provider: Node and TypeScript, deployed as a single function,
+      with one runtime dependency (the platform's own blob client). Public and owner-only bytes are
+      separated deliberately — an <code>approved</code> pet's files are served to anyone, while a{' '}
+      <code>pending</code> or <code>rejected</code> one's are served only to its owner or an
+      operator, and an unauthorised request gets <code>404</code> rather than <code>403</code> so a
+      slug cannot be used to probe for hidden pets.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">method</th>
+            <th scope="col">path</th>
+            <th scope="col">auth</th>
+            <th scope="col">purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            endpoints.map(([method, path, auth, purpose]) => (
+              <tr>
+                <th scope="row" class="num">{method}</th>
+                <td><code>{path}</code></td>
+                <td>{auth}</td>
+                <td>{purpose}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <p>
+      The index the library page reads is <code>GET /api/manifest</code>: public, unauthenticated,
+      approved pets only, sorted by slug, and carrying <code>generatedAt</code>,{' '}
+      <code>total</code>, <code>capableTotal</code>, <code>assetBase</code> and a row per pet with{' '}
+      <code>slug</code>, <code>displayName</code>, <code>thumbnailUrl</code>,{' '}
+      <code>capable</code>, <code>evopet</code>, <code>petJsonUrl</code>,{' '}
+      <code>spritesheetUrl</code>, <code>version</code> and <code>updatedAt</code>.
+    </p>
+  </section>
+
+  <section class="docs-section" id="capability">
+    <h3>Capability</h3>
+    <p>
+      <strong>Evolution capability is the <code>evopet</code> block, and nothing else.</strong> If a{' '}
+      <code>pet.json</code> carries an object-valued <code>evopet</code> key the pet is capable and
+      the parsed block is stored with the record and served in the index; otherwise it is a stock
+      package and <code>evopet</code> is <code>null</code>. That is the desktop app's own marker, so
+      the service refuses <code>"evopet": "yes"</code> rather than storing something the app would
+      call incapable, and it asserts that its own flag agrees with the app's scanner before storing.
+    </p>
+    <p>
+      Declared <code>evolutionGates</code> are validated like <code>levels.validate_gates</code>:{' '}
+      <span class="num">1</span>–<span class="num">4</span> gates, levels 1 to 99, strictly
+      increasing. The index serves both the boolean and the block on purpose — the block is the whole
+      truth, and the boolean is the convenience — so a client never has to re-derive the answer and
+      never has to trust one that cannot be checked.
+    </p>
+  </section>
+
+  <section class="docs-section" id="package">
+    <h3>Package requirements</h3>
+    <p>
+      <code>POST /api/pets/publish</code> takes <code>multipart/form-data</code> only:
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th scope="col">part</th><th scope="col">requirement</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row"><code>pet.json</code></th>
+            <td>≤ 16 KB — the window the app reads capability from</td>
+          </tr>
+          <tr>
+            <th scope="row"><code>spritesheet.webp</code> | <code>spritesheet.png</code></th>
+            <td>exactly 1536×1872: 8 × 9 cells of 192×208, the atlas the app's sprite loader and EvoPet's compiler share</td>
+          </tr>
+          <tr>
+            <th scope="row"><code>thumbnail.png</code> | <code>thumbnail.webp</code></th>
+            <td>optional; ≤ 256 KB and ≤ 512×512</td>
+          </tr>
+          <tr>
+            <th scope="row"><code>public=true|false</code></th>
+            <td>optional; the off switch described below</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Validation happens before anything is stored: the manifest must parse, <code>id</code> must be
+      a legal slug (<code>[a-z0-9-]</code>, <span class="num">1</span>–<span class="num">64</span>{' '}
+      bytes, no leading or trailing dash — it becomes a directory name under{' '}
+      <code>~/.petdex/pets</code>), <code>displayName</code> must fit{' '}
+      <span class="num">96</span> bytes, the sheet must be the documented atlas of the documented
+      kind, and <code>spritesheetPath</code> must agree with the uploaded sheet.
+    </p>
+    <p>The response is a record of what landed, not a promise:</p>
+    <pre><code>{'{slug, status, url, capable, evopet, thumbnailUrl, version, replaced, notes}'}</code></pre>
+  </section>
+
+  <section class="docs-section" id="auth">
+    <h3>Auth v1</h3>
+    <p>
+      One bearer key per user, minted by the operator CLI and stored hashed with scrypt. The secret
+      is never written, never logged, and never returned again. Format{' '}
+      <code>evk1.&lt;id&gt;.&lt;secret&gt;</code>: the id is the public lookup path, the secret is 32
+      random bytes. Issuing is a CLI rather than an HTTP endpoint on purpose — the first operator key
+      would otherwise need a bootstrap secret in the environment that mints credentials, which is
+      worse to hold than the storage token the CLI already needs.
+    </p>
+    <pre><code>{issueKey}</code></pre>
+    <p>Publishing with a key:</p>
+    <pre><code>{publishCurl}</code></pre>
+    <div class="note note--warn">
+      <span class="note-title">The one thing that must not go wrong</span>
+      <p>
+        The desktop app stores its session in the login keychain as a JSON blob, and{' '}
+        <strong><code>refresh_token</code> must be empty</strong>. On a 401 the app posts a
+        non-empty <code>refresh_token</code> to a third party's token endpoint — so a library key
+        sitting in the refresh slot is a credential leak to a service that has nothing to do with
+        this library. Write the blob, which is what <code>key:issue</code> prints:
+      </p>
+      <pre><code>{keychainBlob}</code></pre>
+      <p>
+        With <code>refresh_token</code> empty, a 401 surfaces as a sync error and nothing leaves the
+        machine.
+      </p>
+    </div>
+  </section>
+
+  <section class="docs-section" id="publication">
+    <h3>Publication policy</h3>
+    <p>
+      Publishing is auto-upload: with no flag a package appears in the index immediately with the
+      status the app already understands for a listed pet, <code>approved</code>. The off switch is{' '}
+      <code>public=false</code>, which is the only thing that produces <code>pending</code> — and it
+      is the only setting in this whole system that persists a choice, written to{' '}
+      <code>~/.evopet/settings.json</code>.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <caption>The auto-upload switch, as the app implements it.</caption>
+        <thead>
+          <tr><th scope="col">item</th><th scope="col">value</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">file</th><td><code>~/.evopet/settings.json</code></td></tr>
+          <tr><th scope="row">document</th><td><code>{'{"autoUpload": true}'}</code> or <code>{'{"autoUpload": false}'}</code>, written whole on every change</td></tr>
+          <tr><th scope="row">default</th><td>on. Only an explicit <code>false</code> turns publishing off: a missing key, a missing file, an unreadable file or a value that is not a bare boolean all resolve to the default</td></tr>
+          <tr><th scope="row">where it is set</th><td>the desktop app: Settings → Pet library</td></tr>
+          <tr><th scope="row">copy in the app</th><td>“A newly hatched pet is published to the EvoPet library so others can find it; turn this off to keep every pet local”</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <code>pending</code> and <code>rejected</code> exist because the app already has both statuses,
+      because the off switch has to leave an unlisted package somewhere honest, and because a
+      maintainer needs to suppress a pet without destroying it. Nothing in the default path produces
+      them, and the rejection path is a status change, not a queue.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">from</th>
+            <th scope="col">to</th>
+            <th scope="col">by</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            transitions.map(([from, to, by]) => (
+              <tr>
+                <th scope="row">{from}</th>
+                <td>{to}</td>
+                <td>{by}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <p>
+      The catalogue is stored <strong>one object per pet</strong>, not one catalogue document. A
+      single document would be a read-modify-write with no compare-and-swap behind it, so two
+      concurrent publishes would silently lose one of the two pets — exactly while the library is
+      growing. Per-pet keys make a publish a single write to a key nobody else is writing; the price
+      is that listing is a list plus N reads, which is fine at this scale and honest about it.
+    </p>
+  </section>
+
+  <section class="docs-section" id="deletion">
+    <h3>Deletion and takedown</h3>
+    <p>
+      <code>DELETE /api/pets/&lt;slug&gt;</code> removes the index record and every package object.
+      No tombstone serves anything afterwards, and the slug becomes a <code>404</code>. An owner can
+      delete their own pet; an operator key can delete <strong>any</strong> pet, optionally with a
+      reason, and that reason is kept for maintainer deletions only, in an operator-readable audit
+      entry.
+    </p>
+    <pre><code>{deleteCurl}</code></pre>
+    <div class="note note--warn">
+      <span class="note-title">No monitored takedown address exists yet</span>
+      <p>
+        A third-party complaint needs an address a rights holder can write to, and there is not one:
+        the interim posture is that removal is a manual operator action. Any hosted public use should
+        add a monitored address, a response-time commitment, and a repeat-infringer rule for
+        publishing keys. This site states that plainly rather than implying a process that does not
+        exist, and makes no claim about how fast a takedown would be answered.
+      </p>
+    </div>
+  </section>
+
+  <section class="docs-section" id="not-here">
+    <h3>What this site does not do</h3>
+    <ul class="prose">
+      <li>
+        <strong>No authenticated flow of any kind.</strong> No accounts, no OAuth, no keys, no
+        uploads. The library page reads one public endpoint and nothing else.
+      </li>
+      <li>
+        <strong>No hosted claim.</strong> The service's deploy steps live in its own repository; this
+        site neither performs nor asserts a deployment, and it does not choose the public base URL.
+      </li>
+      <li>
+        <strong>No install path that does not exist.</strong> The app reads its catalogue manifest
+        from a compiled constant and trusts asset URLs under its own host, so{' '}
+        <code>petdex://&lt;slug&gt;</code> installs still resolve to petdex.dev. Only the library URL
+        is overridable. A link here would imply otherwise.
+      </li>
+    </ul>
+  </section>
+
+  <p class="sources">
+    <strong>Source.</strong> {group.source}; <code>evopet_settings.zig</code> and{' '}
+    <code>settings_view.zig</code> for the auto-upload switch, quoted from its own copy.
+  </p>
+</section>

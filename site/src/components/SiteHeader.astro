@@ -1,0 +1,64 @@
+---
+import { REPOS } from '../data/nav';
+
+const path = Astro.url.pathname;
+
+// `startsWith` on a directory prefix, so /library highlights "Library" and
+// /docs highlights "Docs" without a per-page prop.
+function current(href: string): boolean {
+  return href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`);
+}
+
+const links = [
+  { href: '/docs', label: 'Docs' },
+  { href: '/guides', label: 'Guides' },
+  { href: '/library', label: 'Library' },
+];
+---
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/">
+      {/* The user-supplied EvoPet mark, resized from the source JPEG into the
+          site's public/ directory. Decorative here: the wordmark beside it is
+          the link's accessible name, so an alt text would only repeat it. */}
+      <img
+        class="brand-mark"
+        src="/evopet-logo.png"
+        width="24"
+        height="24"
+        alt=""
+        aria-hidden="true"
+        decoding="async"
+      />
+      <span class="brand-word">EvoPet</span>
+    </a>
+    <nav class="site-nav" aria-label="Main">
+      {
+        links.map((link) => (
+          <a href={link.href} aria-current={current(link.href) ? 'page' : undefined}>
+            {link.label}
+          </a>
+        ))
+      }
+      <span class="nav-sep" aria-hidden="true"></span>
+      {/* The four repositories, labelled exactly (correction §4): Pet repo,
+          TamaCodex, EvoPet, Petdex. The pet-half button keeps its generic
+          label `Pet repo` and points at the TamaHermes tree; TamaCodex is the
+          separate upstream link, not a replacement for it. The ↗ is drawn by
+          CSS on [data-external], so the labels stay exact. */}
+      {
+        REPOS.map((repo) => (
+          <a
+            href={repo.href}
+            data-external
+            rel="noopener noreferrer"
+            aria-label={`${repo.label} on GitHub — ${repo.note} (external)`}
+          >
+            {repo.label}
+          </a>
+        ))
+      }
+    </nav>
+  </div>
+</header>

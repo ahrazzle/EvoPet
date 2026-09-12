@@ -1,0 +1,343 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+// The project has two lineages and one upstream original, so `REPOS` carries
+// four links, not one. It is the single source of them (src/data/nav.ts): the
+// header, the hero row and the footer all render the same four.
+import { REPOS } from '../data/nav';
+
+const xpTable = [
+  { event: 'task_success', xp: '14', when: 'a turn ends successfully, once per turn' },
+  { event: 'recovery', xp: '6', when: 'a success after a failure in the same turn' },
+  { event: 'task_failure', xp: '5', when: 'a turn fails' },
+  { event: 'review_opened', xp: '5', when: 'a review or critique is opened' },
+  { event: 'prompt_sent', xp: '4', when: 'every prompt you send' },
+  { event: 'care', xp: '3', when: 'you tend the pet yourself' },
+  { event: 'session_start', xp: '2', when: 'an agent session begins' },
+];
+
+const stages = [
+  { name: 'egg', xp: '0', width: 1, colour: 'var(--stage-egg)' },
+  { name: 'hatchling', xp: '1,041', width: 1.5, colour: 'var(--stage-hatchling)' },
+  { name: 'child', xp: '5,040', width: 5, colour: 'var(--stage-child)' },
+  { name: 'teen', xp: '10,006', width: 10, colour: 'var(--stage-teen)' },
+  { name: 'adult', xp: '20,158', width: 20, colour: 'var(--stage-adult)' },
+];
+
+// Code samples live in the frontmatter and are emitted as string values: in an
+// Astro template a raw `{` starts an expression, so JSON written inline would
+// be parsed as JavaScript instead of printed.
+const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
+---
+
+<BaseLayout
+  title="EvoPet: one pet that grows from all of your agent work"
+  description="EvoPet is a pixel-art desktop companion that earns XP from real agent turns across every profile and every agent you run, and evolves on a ladder of 99 levels."
+  suffix={false}
+>
+  <section class="hero">
+    {/* One ambient element, maximum: a slow drift behind the pet. */}
+    <div class="ambient" aria-hidden="true"></div>
+    <div class="wrap">
+      <div class="hero-copy">
+        <p class="eyebrow">A pixel-art companion for real work</p>
+        <h1>One pet. Every session. Every agent.</h1>
+        <p class="lede">
+          EvoPet is a pixel-art creature that lives on your desktop and in your agent's terminal,
+          and grows from the work you actually do. It is <strong>one pet</strong>: every session,
+          in every profile, across every agent you run, feeds the same creature.
+        </p>
+        {/* §5: two CTAs (the five-button row was the hero's main defect), then
+            the four repository links on their own rule below. */}
+        <div class="hero-actions">
+          <a class="button button--primary" href="/docs#install">Get started</a>
+          <a class="button" href="/docs">Browse the docs</a>
+        </div>
+        <nav class="repo-links" aria-label="Repositories">
+          <span class="mono-label">Source</span>
+          {
+            REPOS.map((repo) => (
+              <a
+                href={repo.href}
+                data-external
+                rel="noopener noreferrer"
+                aria-label={`${repo.label} on GitHub — ${repo.note} (external)`}
+              >
+                {repo.label}
+              </a>
+            ))
+          }
+        </nav>
+      </div>
+      <figure class="hero-art">
+        {/* The pet itself, from the same one sprite cell the terminal and the
+            desktop draw. The stylesheet already had this seat (and the
+            reduced-motion rule for it) with no element in it. */}
+        <img
+          src="/pet-cell-idle-4x.png"
+          width="768"
+          height="832"
+          alt="EvoPet, drawn from its own sprite atlas: one idle cell of the pet at four times the atlas size."
+          decoding="async"
+        />
+        <figcaption>one idle cell of the shipped atlas, 4×</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <section class="section tint--amber">
+      <h2>Two halves, one creature</h2>
+      <p class="prose">
+        EvoPet is a fork of a pet project and a fork of a desktop app, joined at one idea. They
+        are separate trees with separate jobs, and both are needed for the thing to exist. The pet
+        half descends from TamaCodex by way of TamaHermes, which continues on its own; the shell
+        half descends from Petdex.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <h3>The pet</h3>
+          <p>
+            The mechanics. It owns XP, the level ladder, the stats, the life stages and evolution,
+            and it draws the sprite atlas: a grid of 192&times;208 cells, 8 columns by 9 rows,
+            1536&times;1872 in all. Python.
+          </p>
+          <p>
+            Every surface renders that one atlas, so the terminal pet, the desktop pet and the
+            preview are the same creature and cannot drift apart.
+          </p>
+        </div>
+        <div class="card">
+          <h3>The desktop shell</h3>
+          <p>
+            The app that floats the creature above your other windows and gives it a HUD. It also
+            taps the hook payload every hooked agent sends, so the ledger sees Claude Code, Codex,
+            opencode and Gemini CLI as well as Hermes.
+          </p>
+          <p>
+            Growth events are read at turn boundaries only. A turn in one agent is worth a turn in
+            another.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section tint--mint">
+      <h2>One pet, not nine</h2>
+      <p class="prose">
+        This is the idea the whole project exists for, and it is worth stating plainly: you do not
+        get a pet per tool. Profiles, group chats and agents are all sources, and they add up in
+        one place.
+      </p>
+      <p class="prose">
+        There are two routes into the combined ledger, and each source is counted on exactly one
+        of them. Hermes turns arrive from the per-profile ledgers, which know the details the
+        plugin can see. Foreign agents arrive from a spool file the desktop shell writes as their
+        events pass through it. A Hermes event seen on the spool is ignored, because the profile
+        ledger already counted it.
+      </p>
+      <div class="diagram-scroll">
+        <svg
+          class="diagram"
+          viewBox="0 0 696 300"
+          role="img"
+          aria-labelledby="onepet-title onepet-desc"
+        >
+          <title id="onepet-title">How every agent feeds one pet</title>
+          <desc id="onepet-desc">
+            Hermes profiles feed their per-profile ledgers, which the drain reads. Claude Code,
+            Codex, opencode and Gemini CLI post to the desktop shell's hook server, which spools
+            them. Both routes land in one combined ledger, which the compiler renders into one
+            sprite atlas that the terminal and the desktop both display.
+          </desc>
+
+          <text x="12" y="26" fill="#C9BDE4" font-size="13" font-weight="600">sources</text>
+
+          <rect x="12" y="42" width="200" height="34" rx="7" fill="#29204A" stroke="#4A3C78"></rect>
+          <text x="112" y="64" text-anchor="middle" fill="#FFF6EE" font-size="14">Hermes profiles</text>
+
+          <rect x="12" y="86" width="200" height="34" rx="7" fill="#29204A" stroke="#4A3C78"></rect>
+          <text x="112" y="108" text-anchor="middle" fill="#FFF6EE" font-size="14">Claude Code</text>
+
+          <rect x="12" y="130" width="200" height="34" rx="7" fill="#29204A" stroke="#4A3C78"></rect>
+          <text x="112" y="152" text-anchor="middle" fill="#FFF6EE" font-size="14">Codex, opencode, Gemini</text>
+
+          <path d="M212 59 H 250 V 118" fill="none" stroke="#6B5BA8" stroke-width="1.5"></path>
+          <path d="M212 147 H 250 V 118" fill="none" stroke="#6B5BA8" stroke-width="1.5"></path>
+
+          <rect x="250" y="98" width="150" height="40" rx="7" fill="#1E1836" stroke="#4A3C78"></rect>
+          <text x="325" y="114" text-anchor="middle" fill="#C9BDE4" font-size="11.5">two routes,</text>
+          <text x="325" y="129" text-anchor="middle" fill="#FFF6EE" font-size="13">counted once each</text>
+
+          <path d="M400 118 H 440" fill="none" stroke="#6B5BA8" stroke-width="1.5"></path>
+
+          <rect x="440" y="82" width="164" height="72" rx="8" fill="#29204A" stroke="#7BE495"></rect>
+          <text x="522" y="106" text-anchor="middle" fill="#7BE495" font-size="14" font-weight="600">one combined ledger</text>
+          <text x="522" y="126" text-anchor="middle" fill="#C9BDE4" font-size="11.5">levels, stats, stage, gates</text>
+          <text x="522" y="142" text-anchor="middle" fill="#C9BDE4" font-size="11.5">no prompts, no paths</text>
+
+          <path d="M522 154 V 196" fill="none" stroke="#6B5BA8" stroke-width="1.5"></path>
+
+          <rect x="360" y="196" width="324" height="40" rx="7" fill="#1E1836" stroke="#4A3C78"></rect>
+          <text x="522" y="214" text-anchor="middle" fill="#FFF6EE" font-size="13">the compiler draws one 1536x1872 atlas</text>
+          <text x="522" y="229" text-anchor="middle" fill="#C9BDE4" font-size="11.5">and installs it everywhere the pet appears</text>
+
+          <rect x="12" y="196" width="324" height="40" rx="7" fill="#1E1836" stroke="#4A3C78"></rect>
+          <text x="174" y="214" text-anchor="middle" fill="#FFF6EE" font-size="13">terminal prompt and desktop</text>
+          <text x="174" y="229" text-anchor="middle" fill="#C9BDE4" font-size="11.5">same creature, same stage, both places</text>
+
+          <path d="M360 216 H 344" fill="none" stroke="#6B5BA8" stroke-width="1.5"></path>
+        </svg>
+      </div>
+      <p class="prose">
+        Because the desktop mirror is one pet shown machine-wide, exactly one writer owns it: the
+        drain that renders it from the combined ledger. A per-profile build that tries to write
+        that same mirror is refused, by name, rather than silently fighting over it.
+      </p>
+    </section>
+
+    <section class="section tint--lemon">
+      <h2>How it works</h2>
+      <p class="prose">
+        Four steps, and none of them need a network or an account. Everything the pet knows is
+        numbers on your disk.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <h4>Step 1</h4>
+          <h3>An agent does something</h3>
+          <p>A hook fires: a prompt, a successful turn, a failure, a review, a session start or end.</p>
+        </div>
+        <div class="card">
+          <h4>Step 2</h4>
+          <h3>The ledger records it</h3>
+          <p>
+            The event is applied as XP plus stat changes, at the turn boundary. One turn, one
+            entry, whichever agent ran it.
+          </p>
+        </div>
+        <div class="card">
+          <h4>Step 3</h4>
+          <h3>The compiler redraws</h3>
+          <p>
+            The pet's atlas is rebuilt and installed. Rebuilds are coalesced, so a burst of tool
+            calls is one redraw, not forty.
+          </p>
+        </div>
+        <div class="card">
+          <h4>Step 4</h4>
+          <h3>Every surface renders it</h3>
+          <p>The terminal prompt and the desktop both draw the same sheet, with the same HUD.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section tint--sky">
+      <h2>The ladder: 99 levels, 100,000 XP</h2>
+      <p class="prose">
+        Every pet climbs the same curve, so a level means the same amount of work in every package.
+        It is cheap at the start and long at the end:
+        <code>xp_for_level(L) = round(100_000 &times; ((L &minus; 1) &divide; 98) &sup2;)</code>.
+        The first level costs 10 XP, which one prompt and one success covers with room to spare.
+      </p>
+      <ul class="ramp">
+        {
+          stages.map((stage) => (
+            <li>
+              <span>{stage.name}</span>
+              <span class="ramp-bar">
+                <span
+                  class="ramp-fill"
+                  style={`width:${stage.width}%;background:${stage.colour}`}
+                ></span>
+              </span>
+              <span class="ramp-label">{stage.xp} XP</span>
+            </li>
+          ))
+        }
+      </ul>
+      <p class="prose">
+        Those are the default pet's evolution gates. A gate is a level your pet reaches, and when
+        it does, it changes form. The numbers above are the levels and the XP that opens each one.
+        Fifty thousand XP, half the cap, lands inside level 70.
+      </p>
+    </section>
+
+    <section class="section tint--rose">
+      <h2>Evolution is the creator's call</h2>
+      <p class="prose">
+        EvoPet fixes the ladder. How many times a pet changes form, and at which levels, is
+        declared by whoever made it, in the package's own manifest:
+      </p>
+      <pre><code>{gateSnippet}</code></pre>
+      <p class="prose">
+        One to four gates, strictly increasing, one more form than gates: so between two and five
+        forms. Names are positional and not yours to choose, starting at <code>egg</code> and
+        running <code>hatchling</code>, <code>child</code>, <code>teen</code>,
+        <code>adult</code>. Three gates and your pet never reaches adult.
+      </p>
+      <p class="prose">
+        The gates are checked against the art the pet actually ships, at install, while the
+        mistake is still fixable. You cannot declare five forms for a line that has two.
+      </p>
+      <p class="prose">
+        <a href="/docs#gates">Evolution stages and gates</a> has the full contract, including
+        how to pick gates you will not regret.
+      </p>
+    </section>
+
+    <section class="section tint--mint">
+      <h2>What earns XP</h2>
+      <div class="table-scroll">
+        <table>
+          <caption>XP is awarded at turn boundaries, never per tool call.</caption>
+          <thead>
+            <tr><th scope="col">event</th><th scope="col">XP</th><th scope="col">fires on</th></tr>
+          </thead>
+          <tbody>
+            {xpTable.map((row) => (
+              <tr>
+                <th scope="row"><code>{row.event}</code></th>
+                <td>{row.xp}</td>
+                <td>{row.when}</td>
+              </tr>
+            ))}
+            <tr>
+              <th scope="row"><code>rest</code>, <code>idle_minute</code></th>
+              <td>0</td>
+              <td>these move stats and energy only</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose">
+        A good turn is about 18 XP, and a failing turn about 9 to 11. Telling a pet to work harder
+        than that is not a setting; there is no cap on the ladder and no way to buy a level.
+      </p>
+    </section>
+
+    <section class="section tint--amber">
+      <h2>Where things stand</h2>
+      <p class="prose">
+        Said plainly, because the rest of this site is documentation and documentation should not
+        shade the truth:
+      </p>
+      <ul class="prose">
+        <li>The pet's mechanics, the combined ledger and the drain that fills it are in the pet tree.</li>
+        <li>
+          The desktop shell runs as a local build on macOS. A notarized download does not exist
+          yet, so there is nothing to install on a machine that did not build it.
+        </li>
+        <li>
+          The library service is written and passes its own end-to-end round trip, but it is not
+          deployed. The library page here will say it cannot reach the library, and that is the
+          honest answer rather than an empty list.
+        </li>
+        <li>EvoPet's own repository is public as of 11 September 2026.</li>
+      </ul>
+      <div class="hero-actions">
+        <a class="button button--primary" href="/docs#install">Install the pet</a>
+        <a class="button" href="/guides">The guides</a>
+      </div>
+    </section>
+  </div>
+</BaseLayout>

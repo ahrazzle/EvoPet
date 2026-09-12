@@ -1,0 +1,15 @@
+# build output and dependencies
+node_modules/
+dist/
+.astro/
+
+# local environment
+.env
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store
+
+# local tooling scratch
+.hermes-edit/

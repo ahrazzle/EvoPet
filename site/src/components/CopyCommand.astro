@@ -1,0 +1,27 @@
+---
+/**
+ * A command block with a copy button.
+ *
+ * The copy target is the <pre> itself, verbatim — nothing is rewritten for
+ * display, so what someone copies is what the docs say. The confirmation is a
+ * `role="status"` region, which is what a screen reader needs; the button's own
+ * label does not change.
+ */
+interface Props {
+  id: string;
+  code: string;
+  label?: string;
+  caption?: string;
+}
+
+const { id, code, label = 'Copy', caption } = Astro.props;
+---
+
+<pre id={id} tabindex="0"><code>{code}</code></pre>
+<div class="copy-row">
+  <button class="button" type="button" data-copy-target={id} data-copy-label={label}>
+    {label}
+  </button>
+  <span class="copy-status" role="status" aria-live="polite"></span>
+</div>
+{caption && <p class="sources sources--inline">{caption}</p>}

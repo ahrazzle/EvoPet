@@ -1,0 +1,474 @@
+---
+// /guides — the task guides, one card each, one anchored section each.
+//
+// The route is one of the four the design handoff locks, and the header, the
+// footer, the docs sidebar and the library's empty state all link it. Titles,
+// blurbs and source lines come from GUIDES in src/data/nav.ts so a guide cannot
+// be listed in one place and written in another.
+//
+// Every command and number below is taken from the project's own files, named
+// at the end of each guide: the pet tree's README.hermes.md and docs/evopet/,
+// and the library's README.md. Nothing here is a hosted-service claim.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { GUIDES, LIBRARY_API_DEFAULT } from '../../data/nav';
+
+/** One guide's metadata, looked up so the card and the section cannot drift. */
+function guide(id: string) {
+  const found = GUIDES.find((entry) => entry.id === id);
+  if (!found) throw new Error(`no such guide: ${id}`);
+  return found;
+}
+
+const [chooseGates, publishPet, allProfiles, floatDesktop, readState] = GUIDES;
+
+const publishEndpoint = `POST ${LIBRARY_API_DEFAULT}/api/pets/publish   # multipart/form-data, bearer key
+GET  ${LIBRARY_API_DEFAULT}/api/manifest       # the public index, approved pets only`;
+---
+
+<BaseLayout
+  title="Guides"
+  description="Five EvoPet task guides: choose your evolution gates, publish a pet, install across all profiles, float the pet on the desktop, and read your pet's state — each with what it needs first, what to expect, and how it fails."
+>
+  <div class="wrap page">
+    <p class="docs-kicker">Guides</p>
+    <h1>Task guides</h1>
+    <p class="lede">
+      Five things you will actually do with EvoPet, each one with what it needs first, the steps in
+      order, what a correct run looks like, and the specific way it fails. Every command and number
+      is taken from the project's own files, which are named at the end of each guide.
+    </p>
+
+    <ul class="guide-list">
+      {
+        GUIDES.map((entry) => (
+          <li class="guide-card">
+            <h2>
+              <a href={`#${entry.id}`}>{entry.title}</a>
+            </h2>
+            <p>{entry.blurb}</p>
+            <div class="guide-meta">
+              <span class="mono-label">{entry.id}</span>
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+
+    <section class="guide" id={chooseGates.id}>
+      <h2>{chooseGates.title}</h2>
+      <p class="lede">{chooseGates.blurb}</p>
+
+      <h3>Before you start</h3>
+      <ul class="prose">
+        <li>A checkout of the pet tree. The pet needs Python and nothing else: Pillow ships with Hermes.</li>
+        <li>
+          Clear on who chooses: EvoPet fixes the ladder, and <em>you</em> fix how many times your pet
+          changes form and at which levels.
+        </li>
+      </ul>
+
+      <h3>Steps</h3>
+      <ol class="guide-steps">
+        <li class="guide-step">
+          <h4>1. Pick levels, not XP amounts</h4>
+          <p>
+            A gate is a <em>level</em> your pet reaches; the XP it costs is whatever the fixed curve
+            says that level is worth. One to four gates, strictly increasing, levels 1&ndash;99. Keep
+            the first gate above level 1: a gate at level 1 fires at 0 XP, so the pet starts already
+            hatched and its first form is never drawn.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>2. Price the gates in turns</h4>
+          <p>
+            <code>xp_for_level(L) = round(100_000 &times; ((L &minus; 1) &divide; 98)&sup2;)</code>,
+            and a good turn is about 18 XP. Gates at 20, 40 and 60 cost 3,759, 15,837 and 36,245 XP
+            &mdash; about 209, 880 and 2,014 turns. Gates below level 30 feel fast; gates above level
+            50 do not.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>3. Declare them in the manifest</h4>
+          <p>
+            In the <code>pet.json</code> the install will replace:
+            <code>{'"evopet": { "evolutionGates": [20, 40, 60] }'}</code>. Form names are positional
+            and not yours to choose, starting at <code>egg</code> and running
+            <code>hatchling</code>, <code>child</code>, <code>teen</code>, <code>adult</code>.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>4. Install, which is when the gates take effect</h4>
+          <p>
+            <code>./hermes/install-hermes.sh --line toast --machine aurora</code>. The installer
+            absorbs the manifest it is about to replace into the ledger
+            (<code>pet_compiler.sync_ledger_gates</code>), so the new <code>pet.json</code> carries
+            the ledger's gates and the running pet evolves on the ledger's copy, not on the manifest.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>5. Check the table before you ship the pet</h4>
+          <p>
+            The gate control on <a href="/docs#gates">the mechanics page</a> recomputes the table for
+            1&ndash;4 gates from the published curve, and <code>levels.gate_report(gates)</code>
+            prints the same table from the same formula.
+          </p>
+        </li>
+      </ol>
+
+      <div class="expected">
+        <span class="note-title">What a correct run gives you</span>
+        <p>
+          Gates at 20, 40 and 60 give four forms &mdash; egg, hatchling, child, teen. Three gates
+          cannot reach adult, and that is the contract rather than a bug. The default pet's gates,
+          11/23/32/45, are 1,041, 5,040, 10,006 and 20,158 XP, which the gate control on the
+          mechanics page reproduces exactly. Gates installed at a level become a floor in the
+          ledger, and XP only rises, so a pet cannot regress out of a form.
+        </p>
+      </div>
+
+      <div class="failure">
+        <span class="note-title">How it fails</span>
+        <p>
+          A block that is present but invalid is refused at install, and the error names the file:
+          <code>pet.json: evolution gates must strictly increase; 20 follows 40</code>. Out of range
+          (&gt;99), not increasing, zero gates, or more than four gates are all refused by the same
+          validator. Silence is not a declaration, so <code>{'"evopet": {}'}</code> leaves installed
+          gates alone. Editing a manifest does not retroactively move a growing pet: the change lands
+          on the next install, not on the next event. And nothing cross-checks your gates against
+          your spritesheet when you declare them &mdash; a line with no form for a stage your gates
+          imply fails later, when the pet grows into it.
+        </p>
+      </div>
+
+      <p class="sources"><strong>Source.</strong> {chooseGates.source}</p>
+    </section>
+
+    <section class="guide" id={publishPet.id}>
+      <h2>{publishPet.title}</h2>
+      <p class="lede">{publishPet.blurb}</p>
+
+      <h3>Before you start</h3>
+      <ul class="prose">
+        <li>A library service to publish to; its routes are listed at <a href="/docs#endpoints">the endpoints</a>.</li>
+        <li>
+          An owner key, minted once with <code>npm run key:issue -- --email you@example.com --username you</code>.
+        </li>
+        <li>
+          A package: <code>pet.json</code> (&le;16&nbsp;KB), <code>spritesheet.webp</code> or
+          <code>.png</code> at exactly 1536&times;1872 (8&times;9 cells of 192&times;208), and
+          optionally a thumbnail (&le;256&nbsp;KB, &le;512&times;512).
+        </li>
+      </ul>
+
+      <h3>Steps</h3>
+      <ol class="guide-steps">
+        <li class="guide-step">
+          <h4>1. Mint the key, and keep the refresh slot empty</h4>
+          <p>
+            A key looks like <code>evk1.&lt;id&gt;.&lt;secret&gt;</code> and is stored hashed; the
+            secret is never written, never logged and never returned again. The command prints a
+            paste-ready blob that writes <code>{'{"access_token":"evk1…","refresh_token":""}'}</code>.
+            Leave <code>refresh_token</code> empty: a library key in the refresh slot is a credential
+            leak to a third party.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>2. Declare capability as an object</h4>
+          <p>
+            <code>{'"evopet": { "evolutionGates": [11, 23, 32, 45] }'}</code>. Evolution capability
+            is the object-valued <code>evopet</code> key and nothing else; declared gates are
+            validated exactly as the pet validates them.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>3. Publish</h4>
+          <pre><code>{publishEndpoint}</code></pre>
+          <p>
+            The publish is <code>multipart/form-data</code> with a bearer key: parts
+            <code>pet.json</code>, <code>spritesheet.webp</code>, an optional
+            <code>thumbnail.webp</code>, and an optional <code>public=false</code>.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>4. Read the response</h4>
+          <p>
+            <code>{'{slug, status, url, capable, evopet, thumbnailUrl, version, replaced, notes}'}</code>.
+            With no flag the status is <code>approved</code> and the package is listed immediately.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>5. Confirm it is listed</h4>
+          <p>
+            <code>GET /api/manifest</code> &mdash; public, no auth, approved pets only, sorted by
+            slug. The same index this site's <a href="/library">library page</a> reads.
+          </p>
+        </li>
+      </ol>
+
+      <div class="expected">
+        <span class="note-title">What a correct run gives you</span>
+        <p>
+          The packet is in <code>/api/manifest</code> with <code>capable: true</code> and its parsed
+          <code>evopet</code> block, and it renders in the library page and in the desktop app's own
+          library panel. <code>public=false</code> is the only thing that produces
+          <code>pending</code>; nothing in the default path does. Deleting is
+          <code>DELETE /api/pets/&lt;slug&gt;</code>, owner or operator, and it removes the index
+          record and every package object &mdash; after that the record is a <code>404</code>, not a
+          tombstone.
+        </p>
+      </div>
+
+      <div class="failure">
+        <span class="note-title">How it fails</span>
+        <p>
+          Validation happens before anything is stored: a manifest that does not parse, an
+          <code>id</code> that is not a legal slug (<code>[a-z0-9-]</code>, 1&ndash;64 bytes, no
+          leading or trailing dash), a <code>displayName</code> over 96 bytes, or a sheet that is not
+          the documented atlas all fail the publish and nothing is written. A string
+          <code>{'"evopet": "yes"'}</code> is refused outright rather than stored as something the
+          app would call incapable. A request for a <code>pending</code> package's bytes from
+          someone who is not its owner returns <code>404</code>, not <code>403</code>, so a slug
+          cannot be used to probe for hidden pets.
+        </p>
+      </div>
+
+      <p class="sources"><strong>Source.</strong> {publishPet.source}</p>
+    </section>
+
+    <section class="guide" id={allProfiles.id}>
+      <h2>{allProfiles.title}</h2>
+      <p class="lede">{allProfiles.blurb}</p>
+
+      <h3>Before you start</h3>
+      <ul class="prose">
+        <li>A checkout of the pet tree on the machine that runs Hermes.</li>
+        <li>
+          <code>HERMES_HOME</code> understood: unset means <code>~/.hermes</code> (the default
+          profile); inside a named profile it is <code>&lt;home&gt;/.hermes/profiles/&lt;name&gt;</code>.
+        </li>
+      </ul>
+
+      <h3>Steps</h3>
+      <ol class="guide-steps">
+        <li class="guide-step">
+          <h4>1. Install once, in the profile you are in</h4>
+          <p>
+            <code>./hermes/install-hermes.sh --line toast --machine aurora</code>, then
+            <code>hermes plugins enable tamahermes</code>, <code>hermes pets select tamahermes</code>
+            and <code>hermes pets doctor</code>.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>2. Then cover every profile at once</h4>
+          <p>
+            <code>./hermes/install-all-profiles.sh</code> &mdash; the default profile plus
+            <code>~/.hermes/profiles/*</code>.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>3. Narrow it if you need to</h4>
+          <p>
+            <code>--only name1,name2</code> installs into some profiles, and
+            <code>--keep-selection</code> installs the pet without changing which pet is active.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>4. Or one home at a time</h4>
+          <p>
+            <code>HERMES_HOME=~/.hermes/profiles/you ./hermes/install-hermes.sh</code>, and
+            <code>HERMES_HOME=~/.hermes ./hermes/install-hermes.sh</code> for the default profile.
+          </p>
+        </li>
+      </ol>
+
+      <div class="expected">
+        <span class="note-title">What a correct run gives you</span>
+        <p>
+          Each profile owns its own <code>&lt;HERMES_HOME&gt;/pets/tamahermes/pet.json</code>, its own
+          compiled atlas and its own ledger, and <code>hermes pets doctor</code> reports the pet
+          ready. Be clear about what that means: the pet is profile-scoped, so &ldquo;all
+          profiles&rdquo; is one pet <em>per profile</em>. Making those many pets one creature is the
+          combined ledger's job, which is the last guide here.
+        </p>
+      </div>
+
+      <div class="failure">
+        <span class="note-title">How it fails</span>
+        <p>
+          If <code>hermes plugins enable</code> dies with
+          <code>TypeError: list indices must be integers</code>, that profile still has the legacy
+          bare-list form of <code>plugins:</code> in its <code>config.yaml</code>; rewrite it to the
+          mapping form and retry. An install pointed at a non-live home &mdash; which is what tests
+          and staging do &mdash; installs the pet but deliberately does not run
+          <code>hermes pets select</code>, so it cannot change the config of the profile you are
+          actually running. And if you move the checkout, the recorded repo root at
+          <code>&lt;HERMES_HOME&gt;/tamahermes/repo-root</code> goes stale: re-run the installer, or
+          set <code>TAMAHERMES_REPO_ROOT</code>.
+        </p>
+      </div>
+
+      <p class="sources"><strong>Source.</strong> {allProfiles.source}</p>
+    </section>
+
+    <section class="guide" id={floatDesktop.id}>
+      <h2>{floatDesktop.title}</h2>
+      <p class="lede">{floatDesktop.blurb}</p>
+
+      <h3>Before you start</h3>
+      <ul class="prose">
+        <li>
+          The desktop shell installed on this machine. It is a local build today: there is no
+          notarized download, and a bundle built on one Mac is rejected by Gatekeeper on another.
+        </li>
+        <li>The pet installed in the profiles whose work you want the floating pet to reflect.</li>
+        <li>The desktop app <strong>closed</strong> &mdash; this is not optional.</li>
+      </ul>
+
+      <h3>Steps</h3>
+      <ol class="guide-steps">
+        <li class="guide-step">
+          <h4>1. Quit the app first</h4>
+          <p>
+            The app rewrites its settings file from memory when it quits, so an activate pass against
+            a running app is clobbered a moment later.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>2. Mirror the pet into the desktop home</h4>
+          <p>
+            <code>./hermes/install-hermes.sh --petdex-activate</code> pins it as the pet on screen;
+            <code>--petdex</code> alone adds it to the rotation without pinning it.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>3. Do it from every profile</h4>
+          <p>
+            <code>./hermes/install-all-profiles.sh --petdex-activate</code>. The mirror is
+            machine-wide while ledgers are per-profile, so installing from every profile is what
+            keeps the floating pet current from all of them.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>4. Or drive the mirror directly</h4>
+          <p>
+            <code>python -m tamahermes petdex --petdex-home ~/.petdex --force --activate</code>.
+          </p>
+        </li>
+      </ol>
+
+      <div class="expected">
+        <span class="note-title">What a correct run gives you</span>
+        <p>
+          <code>~/.petdex/pets/tamahermes/</code> holds <code>pet.json</code> and
+          <code>spritesheet.webp</code> &mdash; the same 8&times;9, 192&times;208 atlas Hermes
+          renders, because both read the one sheet. With <code>--activate</code>, the app's
+          <code>active_pet</code> points at it and every other key of that settings file, including
+          its order, is preserved. Once the opt-in marker is recorded at
+          <code>&lt;HERMES_HOME&gt;/tamahermes/petdex-home</code>, every growth refresh re-mirrors
+          the sheet, so the floating pet evolves with the terminal one instead of freezing at
+          whatever it looked like on install day.
+        </p>
+      </div>
+
+      <div class="failure">
+        <span class="note-title">How it fails</span>
+        <p>
+          Activating against a running app appears to work and is then overwritten. The mirror is a
+          copy, not a second pet: it never grows on its own, and an unmanaged mirror shows whichever
+          profile last changed. If hooks look dead, check the hook server's <code>/health</code>
+          first: the shell exits 0 by design when its hook server fails to bind &mdash; for example
+          because another instance is already running &mdash; and then keeps running with every hook
+          silently doing nothing.
+        </p>
+      </div>
+
+      <p class="sources"><strong>Source.</strong> {floatDesktop.source}</p>
+    </section>
+
+    <section class="guide" id={readState.id}>
+      <h2>{readState.title}</h2>
+      <p class="lede">{readState.blurb}</p>
+
+      <h3>Before you start</h3>
+      <ul class="prose">
+        <li>An installed pet, from <a href="#install-across-all-profiles">the previous guide</a>.</li>
+      </ul>
+
+      <h3>Steps</h3>
+      <ol class="guide-steps">
+        <li class="guide-step">
+          <h4>1. Ask the pet</h4>
+          <p>
+            <code>python -m tamahermes --target hermes status</code>, or add
+            <code>--json</code> for the machine-readable form. It reports the display name and the
+            form it resolves to, the stage and level, XP, the five stats, the traits, and the visual
+            state the atlas is drawn from.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>2. Read the profile's ledger</h4>
+          <p>
+            <code>&lt;HERMES_HOME&gt;/tamahermes/state.json</code>. This is the pet's own source of
+            truth, and it is also where the installed gates live &mdash; which is why editing a
+            manifest needs an install to take effect.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>3. Read the combined ledger</h4>
+          <p>
+            <code>~/.evopet/state.json</code>: one pet's worth of XP from every source, with the
+            per-profile ledgers kept as the components they are. Its top-level fields include the
+            mirror claim, which is what makes exactly one writer own the desktop mirror.
+          </p>
+        </li>
+        <li class="guide-step">
+          <h4>4. Fill it with the drain</h4>
+          <p>
+            <code>python -m tamahermes.evopet_drain</code> is a dry run by default;
+            <code>--apply</code> writes the combined state and prunes the consumed spool, and
+            <code>--no-mirror</code> drains the ledgers without touching the desktop mirror. The
+            defaults are the spool at <code>~/.petdex/runtime/evo-queue</code>, the state at
+            <code>~/.evopet/state.json</code> and consumed events under
+            <code>~/.evopet/consumed</code>, each overridable by
+            <code>EVOPET_SPOOL</code>, <code>EVOPET_STATE</code> and
+            <code>EVOPET_CONSUMED</code>.
+          </p>
+        </li>
+      </ol>
+
+      <div class="expected">
+        <span class="note-title">What a correct run gives you</span>
+        <p>
+          A dry run reports what it would absorb and changes no bytes; a second run with no new
+          activity reports zero deltas, which is the honesty check on the whole thing. The Hermes
+          share of the combined ledger's XP equals the sum of the per-profile ledgers, and the
+          clamped stats &mdash; energy, health, bond, mess, satiety &mdash; are merged by maximum
+          rather than summed, because a delta on a clamped value means nothing. On a first run the
+          cursor is zero, so every profile's whole history lands in the combined ledger exactly once.
+        </p>
+      </div>
+
+      <div class="failure">
+        <span class="note-title">How it fails</span>
+        <p>
+          Nothing is written without <code>--apply</code>. A spool event with no
+          <code>session_id</code> is ignored: those are the shell-hook posts, display-only and
+          un-attributable, so they can be neither counted nor deduped safely. A spool event that came
+          from Hermes is ignored too, because the profile ledger already counted it &mdash; each
+          source is counted on exactly one of the two routes. The ledger carries numbers only: never
+          your prompts, never a path, never a transcript, and that restriction is checked by test
+          rather than by convention. One honest gap: every non-Hermes event seen on the machine so
+          far has been a fixture, so until Claude Code and Codex really post to the hook server, the
+          combined ledger earns from the Hermes route and little else.
+        </p>
+      </div>
+
+      <p class="sources"><strong>Source.</strong> {readState.source}</p>
+    </section>
+
+    <nav class="anchor-links" aria-label="Section navigation">
+      <a href="/docs#reference">← Reference</a>
+      <a href="/library">Browse the library →</a>
+    </nav>
+  </div>
+</BaseLayout>

@@ -1,0 +1,299 @@
+---
+// "Getting started" — the install group of /docs.
+//
+// Recycled from the previous /docs/install page, which held this content
+// already: the two installs, the flags, the environment, the paths. The route
+// went away (the design handoff locks exactly four routes and moves in-page
+// navigation to anchors); the content did not.
+import CopyCommand from '../CopyCommand.astro';
+import { DOC_GROUPS, LEGACY_SHELL_REPO, type DocGroup } from '../../data/nav';
+
+const group = DOC_GROUPS.find((entry) => entry.id === 'getting-started') as DocGroup;
+
+const petInstall = `git clone <the pet tree>      # from a checkout of the pet tree
+cd <the pet tree>
+./hermes/install-hermes.sh --line toast --machine aurora`;
+
+const enableSelect = `hermes plugins enable tamahermes
+hermes pets select tamahermes
+hermes pets doctor        # should report ✓ ready`;
+
+const allProfiles = `# every Hermes profile on this machine: the default one and ~/.hermes/profiles/*
+./hermes/install-all-profiles.sh
+
+# or one at a time
+HERMES_HOME=~/.hermes/profiles/you ./hermes/install-hermes.sh
+HERMES_HOME=~/.hermes                 ./hermes/install-hermes.sh`;
+
+const desktopMirror = `./hermes/install-hermes.sh --petdex-activate   # close the desktop app first
+./hermes/install-all-profiles.sh --petdex-activate`;
+
+const flagTable: [string, string][] = [
+  ['--line LINE_ID', 'which companion line to install. Default: toast.'],
+  ['--machine aurora|pulse', 'which outer shell. Default: aurora.'],
+  ['--form FORM_ID', 'install one exact form, grown or not.'],
+  ['--display-name NAME', 'the name shown for the pet.'],
+  ['--reset', 'start over from a fresh egg.'],
+  ['--shell-hooks', 'print the config.yaml hook block instead of copying the plugin.'],
+  ['--petdex', 'also mirror the pet into the desktop home so it floats (adds it to the rotation).'],
+  ['--petdex-activate', 'with --petdex, also make it the active desktop pet.'],
+  ['--petdex-home PATH', 'the desktop home to use. Default: ~/.petdex.'],
+];
+
+const envTable: [string, string][] = [
+  [
+    'HERMES_HOME',
+    'the target Hermes home. Inside a named profile it is <home>/.hermes/profiles/<name>; unset, it is ~/.hermes.',
+  ],
+  ['TAMAHERMES_HOME', 'overrides HERMES_HOME for the hook script and the plugin.'],
+  ['TAMAHERMES_PETDEX_HOME', 'the desktop home to mirror into. Unset means no desktop mirror.'],
+  ['TAMAHERMES_REPO_ROOT', 'lets the plugin and the hook script import the package without installing it.'],
+  ['TAMAHERMES_PY', 'the interpreter the shell-hook wrapper runs.'],
+  ['TAMAHERMES_SYNC=1', 'run the plugin inline instead of on its worker thread (tests).'],
+  ['TAMAHERMES_LINE / TAMAHERMES_MACHINE', 'pin the companion line and the shell.'],
+  ['TAMAHERMES_CATALOG_DIR', 'a custom rendered catalog directory.'],
+];
+
+const pathTable: [string, string][] = [
+  [
+    '<HERMES_HOME>/pets/tamahermes/pet.json',
+    'the manifest Hermes reads, including the evolution gates',
+  ],
+  [
+    '<HERMES_HOME>/pets/tamahermes/spritesheet-<hash>.webp',
+    'the compiled atlas, 8 columns by 9 rows of 192×208 cells',
+  ],
+  ['<HERMES_HOME>/tamahermes/state.json', 'the profile’s growth ledger'],
+  [
+    '<HERMES_HOME>/tamahermes/hermes-hook-state.json',
+    'per-turn bookkeeping (turn ids only)',
+  ],
+  ['<HERMES_HOME>/plugins/tamahermes/', 'the native plugin the installer copies'],
+  ['~/.evopet/state.json', 'the combined ledger: one pet’s worth of XP from every source'],
+  ['~/.evopet/settings.json', 'the auto-upload switch. See the library docs'],
+];
+---
+
+<section class="docs-group" id={group.id}>
+  <h2>{group.label}</h2>
+  <p class="lede">{group.summary}</p>
+
+  <section class="docs-section" id="install">
+    <h3>Install the pet</h3>
+    <p>
+      EvoPet is the pet and the desktop shell, and they install separately. You can run the pet
+      alone, in the terminal, with no desktop app at all. From a checkout of the pet tree:
+    </p>
+    <CopyCommand id="docs-install-pet" code={petInstall} label="Copy the install" />
+    <div class="note">
+      <span class="note-title">Before you start</span>
+      <p>
+        EvoPet's own repository is public as of 11 September 2026, and the pet tree is a separate
+        tree, so these instructions assume a checkout on your machine. The pet needs Python and
+        nothing else — its only dependency is Pillow, which already ships with Hermes.
+      </p>
+    </div>
+    <p>
+      That one command installs the package, builds the pet into your Hermes home, copies the
+      plugin, and selects the pet.
+    </p>
+  </section>
+
+  <section class="docs-section" id="enable">
+    <h3>Enable the plugin</h3>
+    <p>
+      The plugin is how growth events reach the ledger. It is a native Hermes plugin, so it runs
+      in process, nothing needs allowlisting, and hook callbacks only enqueue a payload — the
+      atlas rebuild is coalesced, so a burst of tool calls triggers one rebuild rather than forty.
+      A failed rebuild is logged and dropped, because a mascot must never break an agent turn.
+    </p>
+    <p>
+      The alternative is shell hooks: put the block from{' '}
+      <code>hermes/hooks.snippet.yaml</code> into <code>&lt;HERMES_HOME&gt;/config.yaml</code>,
+      replacing <code>__REPO__</code> with your checkout path, then allowlist each entry with{' '}
+      <code>hermes hooks list</code>. <strong>Pick one.</strong> Wiring both feeds the same ledger
+      twice.
+    </p>
+  </section>
+
+  <section class="docs-section" id="select">
+    <h3><code>pets select</code></h3>
+    <p>
+      Selecting the pet is what makes it the active one for that profile, and it happens once per
+      install:
+    </p>
+    <CopyCommand id="docs-enable-select" code={enableSelect} label="Copy the three commands" />
+  </section>
+
+  <section class="docs-section" id="doctor">
+    <h3><code>pets doctor</code></h3>
+    <p>
+      <code>hermes pets doctor</code> is the check, and it should report the pet ready. If it does
+      not, start with the two things that go wrong most: the plugin was copied but never enabled,
+      or the install was pointed at a home whose <code>config.yaml</code> still uses the legacy
+      bare-list <code>plugins:</code> form.
+    </p>
+  </section>
+
+  <section class="docs-section" id="per-profile">
+    <h3>Per-profile install</h3>
+    <p>
+      Hermes homes are profile-scoped: the pets directory is <code>&lt;HERMES_HOME&gt;/pets</code>,
+      and <code>HERMES_HOME</code> is <code>&lt;home&gt;/.hermes/profiles/&lt;name&gt;</code>
+      inside a named profile (unset — that is, <code>~/.hermes</code> — for the default profile).
+      So each profile owns its own pet and its own ledger, and you install once per profile you
+      actually use.
+    </p>
+    <p>
+      Pointing an install at a non-live home, which is what tests and staging do, installs the pet
+      but deliberately does not run <code>hermes pets select</code>, so it cannot change the
+      config of the profile you are actually running.
+    </p>
+  </section>
+
+  <section class="docs-section" id="all-profiles">
+    <h3><code>install-all-profiles.sh</code></h3>
+    <p>
+      One command covers the default profile and every named profile on the machine. It also takes{' '}
+      <code>--only name1,name2</code> and <code>--keep-selection</code> (install the pet without
+      changing which pet is active).
+    </p>
+    <CopyCommand id="docs-all-profiles" code={allProfiles} label="Copy the commands" />
+  </section>
+
+  <section class="docs-section" id="flags">
+    <h3>Installer flags</h3>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th scope="col">Flag</th><th scope="col">Effect</th></tr>
+        </thead>
+        <tbody>
+          {
+            flagTable.map(([flag, effect]) => (
+              <tr>
+                <th scope="row"><code>{flag}</code></th>
+                <td>{effect}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="docs-section" id="desktop">
+    <h3>Float it on the desktop</h3>
+    <p>
+      The pet renders in the terminal by default. Mirroring it into the desktop shell's pet
+      directory makes it float there too, off the same ledger:
+    </p>
+    <CopyCommand id="docs-desktop" code={desktopMirror} label="Copy the commands" />
+    <div class="note note--warn">
+      <span class="note-title">Close the desktop app first</span>
+      <p>
+        The app rewrites its settings file from memory when it quits, so an activate pass against a
+        running app is clobbered. Only <code>--petdex-activate</code> touches which pet is on
+        screen, and it preserves every other key of that file, including their order.
+      </p>
+    </div>
+    <p>
+      The mirror is a copy, not a second pet. Once the opt-in marker is recorded at{' '}
+      <code>&lt;HERMES_HOME&gt;/tamahermes/petdex-home</code>, every growth refresh re-mirrors the
+      sheet, so the floating pet evolves with the terminal one instead of freezing at whatever it
+      looked like on install day.
+    </p>
+    <p>
+      One honest caveat: the desktop pet is machine-wide while growth ledgers are per-profile, so
+      an unmanaged mirror shows whichever profile last changed. Installing from every profile is
+      what keeps it current from all of them, and the combined ledger is what makes the ambiguity
+      go away.
+    </p>
+  </section>
+
+  <section class="docs-section" id="environment">
+    <h3>Environment</h3>
+    <p>
+      None of these are needed for a normal install. They exist so tests, staging and unusual
+      layouts can point the same code somewhere else.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th scope="col">Variable</th><th scope="col">Purpose</th></tr>
+        </thead>
+        <tbody>
+          {
+            envTable.map(([name, purpose]) => (
+              <tr>
+                <th scope="row"><code>{name}</code></th>
+                <td>{purpose}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="docs-section" id="paths">
+    <h3>What is kept, and where</h3>
+    <div class="table-scroll">
+      <table>
+        <caption>Nothing here is uploaded by installing. Growth is local until you publish.</caption>
+        <thead>
+          <tr><th scope="col">Path</th><th scope="col">What it is</th></tr>
+        </thead>
+        <tbody>
+          {
+            pathTable.map(([path, what]) => (
+              <tr>
+                <th scope="row"><code>{path}</code></th>
+                <td>{what}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Only numbers are stored: XP, counters, stats and traits — never your prompts, never tool
+      output, never a file path. The combined ledger's restriction is enforced by its own test
+      rather than by convention.
+    </p>
+  </section>
+
+  <section class="docs-section" id="shell">
+    <h3>The desktop shell</h3>
+    <p>
+      The shell is the app that floats the pet and taps every agent's hook payload, so Claude Code,
+      Codex, opencode and Gemini CLI can feed the same creature. It is a Zig build with a pinned
+      SDK, and today it is a <strong>local build</strong>: there is no notarized download, and a
+      bundle built on one Mac is rejected by Gatekeeper on any other.
+    </p>
+    <p>
+      Because of that, the honest install path for the shell right now is to build it from the app
+      tree on the machine that will run it. It installs as its own app, leaving the stock one in
+      place so you can revert by quitting and reopening the other.
+    </p>
+    <p>
+      The shell half descends from <strong>Petdex</strong>, the desktop app shell lineage. An
+      earlier repository published as <code>{LEGACY_SHELL_REPO}</code> is that lineage's older
+      home; this site links the lineage as Petdex, and the older mirror is named here as prose
+      rather than offered as a second button.
+    </p>
+    <div class="note">
+      <span class="note-title">If hooks look dead</span>
+      <p>
+        The shell exits 0 by design when its hook server fails to bind — for example because another
+        petdex is already running — and then keeps running with every hook silently doing nothing.
+        Check the hook server's <code>/health</code> first.
+      </p>
+    </div>
+  </section>
+
+  <p class="sources">
+    <strong>Source.</strong> {group.source}; <code>tamahermes/paths.py</code> and{' '}
+    <code>tamahermes/pet_compiler.py</code> for what an install writes.
+  </p>
+</section>

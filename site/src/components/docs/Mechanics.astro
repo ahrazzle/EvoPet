@@ -1,0 +1,472 @@
+---
+// "Mechanics" — the reference group of /docs.
+//
+// Every number here is computed from the ported curve (src/data/curve.ts),
+// which is a literal port of tamahermes/levels.py. Nothing in this file types a
+// level's XP by hand, so the table cannot drift from the formula.
+import { DEFAULT_EVOLUTION_GATES, MAX_LEVEL, STAGE_ORDER, curveReport, formatXp, gateReport, xpForLevel } from '../../data/curve';
+import { DOC_GROUPS, type DocGroup } from '../../data/nav';
+
+const group = DOC_GROUPS.find((entry) => entry.id === 'mechanics') as DocGroup;
+
+// Code samples live in the frontmatter and are emitted as string values: in an
+// Astro template a raw `{` starts an expression, so JSON written inline would
+// be parsed as JavaScript instead of printed.
+const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
+const refusalSnippet = 'pet.json: evolution gates must strictly increase; 20 follows 40';
+
+const xpEvents: [string, number, string][] = [
+  ['task_success', 14, 'a turn ends successfully, once per turn'],
+  ['recovery', 6, 'a success after a failure in the same turn'],
+  ['task_failure', 5, 'a turn fails'],
+  ['review_opened', 5, 'a review or critique is opened'],
+  ['prompt_sent', 4, 'every prompt you send'],
+  ['care', 3, 'you tend the pet yourself'],
+  ['session_start', 2, 'an agent session begins'],
+];
+
+const statsOnly = ['rest', 'token_usage', 'idle_minute', 'drag'];
+
+const curve = curveReport([1, 2, 20, 50, 70, 99]);
+const halfCapLevel = (() => {
+  let level = 1;
+  for (let candidate = 1; candidate <= 99; candidate += 1) {
+    if (xpForLevel(candidate) <= 50_000) level = candidate;
+  }
+  return level;
+})();
+const lastStepCost = xpForLevel(99) - xpForLevel(50);
+const gates = gateReport(DEFAULT_EVOLUTION_GATES);
+
+const refusals = [
+  'evolution gate 120 is outside 1..99',
+  'evolution gates must strictly increase; 10 follows 30',
+  'a pet needs at least one evolution gate',
+  'at most 4 gates supported (5 forms); got 5',
+];
+
+const trackerOwners: [string, string, string, string][] = [
+  ['energy', 'stats.energy', '≤20 critical, ≤45 low, ≥80 full, else ok', 'Full is good. The only tracker that gates behaviour.'],
+  ['satiety', 'totalTokens // 100, else a mix of prompt chars, tool-output chars, runs and token samples', '<35 hungry, ≥70 fed, else ok', 'Full is good: how much work you have fed it.'],
+  ['health', 'stats.health (−4 on failure, +2 recovery, +4 care, +3 rest)', '≤35 weak, else ok', 'Full is good.'],
+  ['bond', 'stats.bond (+1 session, +2 success, +1 recovery, +3 care)', '<25 new, <65 warm, ≥65 attached', 'Full is good.'],
+  ['mess', 'mess + failedRuns×6 + careMistakes×4 + min(24, idleMinutes ÷ 10) + unresolved×3, where unresolved = workRuns − completedRuns − reviews', '<25 clean, <60 dusty, ≥60 messy', 'Inverted: high is bad. See D1 and D2 below.'],
+];
+---
+
+<section class="docs-group" id={group.id}>
+  <h2>{group.label}</h2>
+  <p class="lede">{group.summary}</p>
+
+  <section class="docs-section" id="loop">
+    <h3>The loop</h3>
+    <ol>
+      <li>An agent does something; Hermes fires a hook event (<code>prompt_sent</code>, <code>task_success</code>, …).</li>
+      <li>The event is applied to that profile's ledger as XP plus stat changes, at the turn boundary.</li>
+      <li>The compiler redraws the pet's atlas and installs it. Rebuilds are coalesced, so a burst of tool calls is one redraw.</li>
+      <li>Every surface renders that one sheet: the terminal pet and the desktop mirror.</li>
+    </ol>
+    <p>
+      XP is awarded <strong>at turn boundaries, never per tool call</strong>. A turn in Codex has
+      to be worth a turn in Hermes; per-tool accounting would inflate the pet twenty to forty times
+      over against the ladder.
+    </p>
+  </section>
+
+  <section class="docs-section" id="xp-events">
+    <h3>XP events</h3>
+    <div class="table-scroll">
+      <table>
+        <caption>One table in the code — <code>state.EVENT_DELTAS</code> — is every XP value and every stat change.</caption>
+        <thead>
+          <tr>
+            <th scope="col">event</th>
+            <th scope="col">XP</th>
+            <th scope="col">fires on</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            xpEvents.map(([event, xp, when]) => (
+              <tr>
+                <th scope="row"><code>{event}</code></th>
+                <td class="num">{xp}</td>
+                <td>{when}</td>
+              </tr>
+            ))
+          }
+          <tr>
+            <th scope="row">
+              {statsOnly.map((event, index) => (
+                <>{index > 0 ? ', ' : ''}<code>{event}</code></>
+              ))}
+            </th>
+            <td class="num">0</td>
+            <td>these move stats and energy only</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      A good turn is about <span class="num">{xpEvents[4][1] + xpEvents[0][1]}</span> XP — a prompt
+      and a success — and a failing turn about <span class="num">9</span> to{' '}
+      <span class="num">11</span>.
+    </p>
+  </section>
+
+  <section class="docs-section" id="ladder">
+    <h3>The ladder</h3>
+    <p>
+      Every pet in every package climbs the same ladder, so a level means the same amount of work
+      in every pet. It is fixed by EvoPet, cheap at the start and long at the end:
+    </p>
+    <p>
+      <code>xp_for_level(L) = round(100_000 × ((L − 1) ÷ {MAX_LEVEL - 1})²)</code>,
+      that is <code>CAP_XP = 100,000</code>, <code>MAX_LEVEL = {MAX_LEVEL}</code>,{' '}
+      <code>EXPONENT = 2.0</code>.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <caption>Rendered from the formula above, not retyped.</caption>
+        <thead>
+          <tr>
+            <th scope="col">level</th>
+            <th scope="col">cumulative XP</th>
+            <th scope="col">what this level costs</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            curve.map((row) => (
+              <tr>
+                <th scope="row" class="num">{row.level}</th>
+                <td class="num">{formatXp(row.xp)}</td>
+                <td class="num">{row.level > 1 ? formatXp(row.costXp) : '—'}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <p>
+      XP is cumulative and never decreases, so a level once reached is never lost. Half the cap,
+      <span class="num">{formatXp(50_000)}</span> XP, lands inside level{' '}
+      <span class="num">{halfCapLevel}</span>, and the climb from level 50 to level 99 costs{' '}
+      <span class="num">{formatXp(lastStepCost)}</span> XP.
+    </p>
+    <p>
+      <strong>The bar fills against the level, not the form.</strong> <code>level_progress(xp)</code>{' '}
+      reports the level and the position between its floor (<code>xp_for_level(L)</code>) and its
+      ceiling (<code>xp_for_level(L + 1)</code>), so the bar fills about a hundred times in a pet's
+      life and resets at every level-up — but the sprite changes only when a gate is crossed,
+      because a gate is the only thing that changes the form. At level 99 the ceiling is{' '}
+      <code>None</code>, the bar reports 100%, and the drawn value snaps to 5% buckets.
+    </p>
+  </section>
+
+  <section class="docs-section" id="gates">
+    <h3>Evolution gates</h3>
+    <p>
+      How many evolutions a pet has, and at which levels, is the creator's choice, declared in the
+      package's own manifest:
+    </p>
+    <pre><code>{gateSnippet}</code></pre>
+    <p>
+      A gate is a level the pet <em>reaches</em>: when cumulative XP first equals or passes{' '}
+      <code>xp_for_level(gate)</code>, the pet moves to the next form. There is always one more
+      form than gate, so one to four gates means two to five forms. The default pet declares{' '}
+      <code>({DEFAULT_EVOLUTION_GATES.join(', ')})</code>, which on the fixed ladder is:
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">gate level</th>
+            <th scope="col">cumulative XP</th>
+            <th scope="col">from</th>
+            <th scope="col">to</th>
+            <th scope="col">XP this step costs</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            gates.map((row) => (
+              <tr>
+                <th scope="row" class="num">{row.gate}</th>
+                <td class="num">{formatXp(row.xp)}</td>
+                <td><code>{row.from}</code></td>
+                <td><code>{row.to}</code></td>
+                <td class="num">{formatXp(row.stepXp)}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <h4>When a declaration takes effect</h4>
+    <ol>
+      <li>
+        Declare <code>{gateSnippet}</code> in the <code>pet.json</code>{' '}
+        the install will replace, or edit the installed one afterwards.
+      </li>
+      <li>
+        Install. The installer absorbs the manifest it is about to replace into the ledger
+        (<code>pet_compiler.sync_ledger_gates</code>), then builds, so the new{' '}
+        <code>pet.json</code> carries the ledger's gates.
+      </li>
+      <li>
+        The change takes effect on the <strong>next install</strong>, not on the next event. Nothing
+        re-reads a manifest mid-run, and it is the ledger's own gate list —{' '}
+        <code>state.evolution_gates(state)</code> — that <code>maybe_evolve</code> and{' '}
+        <code>stage_progress</code> read.
+      </li>
+    </ol>
+    <p>A manifest that declares nothing leaves the ledger alone: silence is not a declaration.</p>
+    <h4>What a bad gate list is told</h4>
+    <p>
+      <code>levels.validate_gates</code> refuses, and names the problem. These are its messages,
+      verbatim:
+    </p>
+    <ul class="prose">
+      {refusals.map((message) => <li><code>{message}</code></li>)}
+    </ul>
+    <p>
+      A block that is present but invalid is refused at install, and <code>PetCompileError</code>{' '}
+      names the file: <code>{refusalSnippet}</code>. A ledger with no{' '}
+      <code>evolutionGates</code> key at all behaves exactly as it always has, on the default pet's
+      gates — a growth event that raised would strand a user mid-run.
+    </p>
+    <p>
+      Two properties make a reached gate safe to rely on. The gate level becomes a floor in the
+      ledger's threshold table, and XP only rises, so a pet cannot regress out of a form. And the
+      terminal form is absent from that table, so the last form has nothing to grow into.
+    </p>
+  </section>
+
+  <section class="docs-section" id="forms">
+    <h3>Forms and branches</h3>
+    <p>
+      Form names are positional and not the creator's to choose, taken from{' '}
+      <code>STAGE_ORDER = ({STAGE_ORDER.map((stage) => `"${stage}"`).join(', ')})</code>. Three
+      gates give you egg, hatchling, child and teen — and your pet never reaches adult.
+    </p>
+    <p>
+      <code>teen</code> and <code>adult</code> also carry branch variants that the runtime picks
+      from stats and traits rather than from a gate:
+    </p>
+    <ul class="prose">
+      <li>
+        <strong>teen</strong> — <code>resilient</code> (resilience ≥ focus + 3), <code>restless</code>{' '}
+        (restlessness ≥ focus + 4), otherwise <code>focused</code>.
+      </li>
+      <li>
+        <strong>adult</strong>, checked in order — <code>sleepy</code> (energy &lt; 28, or 120+ quiet
+        minutes), <code>worker</code> (≥ 4 completed runs and focus ≥ resilience),{' '}
+        <code>resilient</code> (resilience ≥ focus and ≥ 2 failures), <code>quiet</code>{' '}
+        (restlessness ≤ 2 and 60+ quiet minutes), otherwise <code>calm</code>.
+      </li>
+    </ul>
+    <p>
+      Branches are sticky: once chosen they persist, and they are restored after dormancy. A branch
+      is a record of how you worked, not a choice you make. Form ids read{' '}
+      <code>&lt;line&gt;:&lt;branch&gt;</code>, for example <code>child:root</code> or{' '}
+      <code>teen:focused</code>.
+    </p>
+  </section>
+
+  <section class="docs-section" id="energy">
+    <h3>Energy and dormancy</h3>
+    <p>
+      Energy is 0–100 and is the <strong>only</strong> stat that gates behaviour: it is the awake
+      budget.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <caption>Dormancy is a condition, not a growth step — a hibernating pet still reports the progress it has genuinely made.</caption>
+        <thead>
+          <tr><th scope="col">direction</th><th scope="col">what moves it</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">drains</th>
+            <td>
+              <code>session_start</code> <span class="num">−1</span> · <code>prompt_sent</code>{' '}
+              <span class="num">−1</span> · <code>idle_minute</code> <span class="num">−1</span> ·{' '}
+              <code>task_failure</code> <span class="num">−4</span>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">restores</th>
+            <td>
+              <code>task_success</code> <span class="num">+2</span> · <code>recovery</code>{' '}
+              <span class="num">+1</span> · <code>care</code> <span class="num">+5</span> ·{' '}
+              <code>rest</code> <span class="num">+10</span> per 10 quiet minutes, to a maximum of
+              48 blocks (8 hours)
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">falls asleep</th>
+            <td>energy ≤ <span class="num">4</span>, or health ≤ <span class="num">12</span>, or <span class="num">240</span> idle minutes</td>
+          </tr>
+          <tr>
+            <th scope="row">wakes up</th>
+            <td>energy ≥ <span class="num">35</span> and health ≥ <span class="num">35</span></td>
+          </tr>
+          <tr>
+            <th scope="row">bins</th>
+            <td>≤20 critical · ≤45 low · ≥80 full · otherwise ok</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      While asleep the pet draws flat sleeping artwork — a 24×11 source union against roughly 23×24
+      for every other form, so it <em>looks</em> vertically compressed and is not — and its bar
+      shows real progress toward the form it will wake into rather than a pinned zero.
+    </p>
+  </section>
+
+  <section class="docs-section" id="trackers">
+    <h3>The five trackers</h3>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">tracker</th>
+            <th scope="col">derived from</th>
+            <th scope="col">bins</th>
+            <th scope="col">reads</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            trackerOwners.map(([tracker, from, bins, reads]) => (
+              <tr>
+                <th scope="row">{tracker}</th>
+                <td>{from}</td>
+                <td>{bins}</td>
+                <td>{reads}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Also tracked but never shown: <code>mood</code> (which affects nothing) and the traits{' '}
+      <code>focus</code>, <code>resilience</code> and <code>restlessness</code>, which decide the
+      branch.
+    </p>
+    <h4>What the shipped status strip draws</h4>
+    <p>
+      The top row is silent unless something needs you. Energy is the one escalation: at{' '}
+      <span class="num">45</span> or below the bolt and its gauge appear, amber while energy is low
+      and red once it is critical (<span class="num">20</span> or below). The alert glyph still
+      shows a failure or a review, and the health warning shows while health is{' '}
+      <span class="num">35</span> or below. The bottom row is always drawn: satiety as the bowl,
+      growth as the centre bar, bond as the heart — which stays hidden until the pet is past "new".
+      A direction decision for a richer HUD is still open and is not shown here.
+    </p>
+  </section>
+
+  <section class="docs-section" id="limitations">
+    <h3>Known limitations</h3>
+    <p>
+      These are the defects the project has recorded in its own notes and, where named, in the code.
+      None of them is documented as working anywhere on this site.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th scope="col">id</th><th scope="col">defect</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row" class="num">D1</th>
+            <td>
+              <strong>Mess can never fall.</strong> <code>failedRuns</code> and{' '}
+              <code>careMistakes</code> are never decremented, and <code>task_failure</code>{' '}
+              increments both, so <code>mess_score</code> gains <span class="num">+10</span> per
+              failure monotonically and clamps at <span class="num">100</span>. Any used profile
+              reads "messy" forever, which means a cleanliness gauge cannot work until failures
+              decay.
+            </td>
+          </tr>
+          <tr>
+            <th scope="row" class="num">D2</th>
+            <td>
+              <strong><code>careMistakes</code> is mis-modelled.</strong> It is meant to say "the
+              owner neglected care", but it is incremented by agent turn failures — double-counting
+              every failure in the mess score.
+            </td>
+          </tr>
+          <tr>
+            <th scope="row" class="num">D3</th>
+            <td>
+              <strong>Dormancy is easy to fall into.</strong> Energy drains on every prompt and
+              session start and restores only over quiet time, so a long working session can pin
+              the pet asleep.
+            </td>
+          </tr>
+          <tr>
+            <th scope="row" class="num">D4</th>
+            <td>
+              <strong><code>mood</code> is dead weight.</strong> Tracked, sits near 100, displayed
+              nowhere and affects nothing.
+            </td>
+          </tr>
+          <tr>
+            <th scope="row" class="num">D5</th>
+            <td>
+              <strong><code>level</code> is computed and shown nowhere.</strong>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row" class="num">D6</th>
+            <td>
+              <strong>opencode cannot earn turn XP.</strong> It tracks its phase internally but does
+              not send it, so its payload carries no <code>phase</code> and its turns are
+              indistinguishable from its tool calls.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Three further gaps are documented rather than fixed, and they matter if you are about to rely
+      on them:
+    </p>
+    <ul class="prose">
+      <li>
+        Nothing cross-checks your gates against your spritesheet when you declare them.{' '}
+        <code>validate_gates</code> checks the list's shape only, so a line that lacks a form for a
+        stage your gates imply fails later, in the catalogue lookup, when the pet grows into it —{' '}
+        <code>CatalogError: no form for line …</code>.
+      </li>
+      <li>
+        A manifest's <code>"forms"</code> list is ignored: you cannot name your own forms.
+      </li>
+      <li>
+        Gates are levels only. There is no XP amount, no branch, no condition such as three failed
+        runs; the <code>teen</code> and <code>adult</code> branches still come from stats.
+      </li>
+    </ul>
+    <div class="note note--warn">
+      <span class="note-title">Two notes in the project disagree about the numbers</span>
+      <p>
+        <code>levels-and-evolution.md</code> — the pet's own contract — describes the 99-level
+        ladder with gates at <span class="num">11/23/32/45</span>. An older mechanics write-up
+        describes stage thresholds of <span class="num">120/320/900/1800</span> and a level of{' '}
+        <code>1 + xp // 25</code>. Both cannot be true. This site publishes the gates model, which
+        the shipped <code>levels.py</code> implements, and treats the older write-up as stale; that
+        conflict is flagged rather than hidden, and regenerating the stale note is open work.
+      </p>
+    </div>
+  </section>
+
+  <p class="sources">
+    <strong>Source.</strong> {group.source}. Sleep and wake thresholds, the tracker formulas and
+    the bins were read out of <code>tamahermes/state.py</code> and{' '}
+    <code>tamahermes/visual_state.py</code>; the defects are the project's own recorded list.
+  </p>
+</section>

@@ -1,0 +1,111 @@
+---
+// /docs — one page, four groups, anchors within.
+//
+// The design handoff locks the route map at four routes and moves in-document
+// navigation to anchors, so what used to be separate pages is now a sidebar of
+// anchors over the same content. The content itself was recycled from the
+// previous docs pages rather than rewritten.
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import CopyCommand from '../../components/CopyCommand.astro';
+import GettingStarted from '../../components/docs/GettingStarted.astro';
+import Mechanics from '../../components/docs/Mechanics.astro';
+import LibraryPublishing from '../../components/docs/LibraryPublishing.astro';
+import Reference from '../../components/docs/Reference.astro';
+import { DOC_GROUPS } from '../../data/nav';
+
+const sidebar = [
+  {
+    label: 'Groups',
+    items: DOC_GROUPS.map((group) => ({ href: `#${group.id}`, label: group.label })),
+  },
+  {
+    label: 'Jump to',
+    items: [
+      { href: '#install', label: 'Install' },
+      { href: '#gates', label: 'Evolution gates' },
+      { href: '#trackers', label: 'The five trackers' },
+      { href: '#limitations', label: 'Known limitations' },
+      { href: '#endpoints', label: 'Library endpoints' },
+      { href: '#constants', label: 'Constants' },
+    ],
+  },
+];
+
+const quickStart = `git clone <the pet tree>      # from a checkout of the pet tree
+cd <the pet tree>
+./hermes/install-hermes.sh --line toast --machine aurora
+hermes plugins enable tamahermes
+hermes pets select tamahermes
+hermes pets doctor        # should report ✓ ready`;
+
+// Prev/next for the group that ends at each block. The argument is the index
+// of the group just rendered, so the first call is groupLinks(0).
+function groupLinks(index: number) {
+  return {
+    previous: index > 0 ? DOC_GROUPS[index - 1] : undefined,
+    next: index < DOC_GROUPS.length - 1 ? DOC_GROUPS[index + 1] : undefined,
+  };
+}
+---
+
+<DocsLayout
+  title="Docs"
+  description="EvoPet documentation: install, the mechanics contract, the evolution gates, the library service and the publishing rules, with the known limitations stated as defects rather than hidden."
+  kicker="Reference"
+  groups={sidebar}
+  currentId="getting-started"
+  lede="Everything EvoPet fixes, everything a pet creator chooses, and the parts that are still being built. Where a number appears here it was computed from the code that produces it, and where something does not work it is listed as a defect."
+>
+  <section class="docs-section" id="quick-start">
+    <h2>Quick start</h2>
+    <p>
+      The short version, for a machine that already runs a
+      <a href="https://github.com/NousResearch/hermes-agent" data-external rel="noopener noreferrer">Hermes</a>
+      agent. It installs the pet for one profile and selects it.
+    </p>
+    <CopyCommand id="docs-quick-start" code={quickStart} label="Copy the quick start" />
+    <p>
+      <code>hermes pets doctor</code> should report the pet ready. The long version — every profile
+      at once, the installer flags, and floating the pet on the desktop — is in{' '}
+      <a href="#getting-started">Getting started</a> below.
+    </p>
+  </section>
+
+  <GettingStarted />
+  <nav class="anchor-links" aria-label="Section navigation">
+    <span></span>
+    <a href={`#${groupLinks(0).next?.id}`}>{groupLinks(0).next?.label} →</a>
+  </nav>
+
+  <Mechanics />
+  <nav class="anchor-links" aria-label="Section navigation">
+    <a href={`#${groupLinks(1).previous?.id}`}>← {groupLinks(1).previous?.label}</a>
+    <a href={`#${groupLinks(1).next?.id}`}>{groupLinks(1).next?.label} →</a>
+  </nav>
+
+  <LibraryPublishing />
+  <nav class="anchor-links" aria-label="Section navigation">
+    <a href={`#${groupLinks(2).previous?.id}`}>← {groupLinks(2).previous?.label}</a>
+    <a href={`#${groupLinks(2).next?.id}`}>{groupLinks(2).next?.label} →</a>
+  </nav>
+
+  <Reference />
+  <nav class="anchor-links" aria-label="Section navigation">
+    <a href={`#${groupLinks(3).previous?.id}`}>← {groupLinks(3).previous?.label}</a>
+    <a href="/guides">Guides →</a>
+  </nav>
+
+  <section class="docs-section" id="about-this-documentation">
+    <h2>A note on this documentation</h2>
+    <p>
+      Some of the project's own notes have fallen behind the code, which is normal and not worth
+      hiding. The mechanics write-up still describes an older ladder and an older notion of when a
+      pet evolves; where a note and the source disagree, the source wins, and{' '}
+      <a href="#limitations">Known limitations</a> names the specific differences.
+    </p>
+    <p>
+      There is no documentation search at v1, deliberately: the site is four routes with anchors
+      inside them, and a search box over this much text would be decoration rather than a tool.
+    </p>
+  </section>
+</DocsLayout>

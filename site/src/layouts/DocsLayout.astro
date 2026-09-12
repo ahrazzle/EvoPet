@@ -1,0 +1,96 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import { ROUTES } from '../data/nav';
+
+export interface SideGroup {
+  label: string;
+  items: { href: string; label: string }[];
+}
+
+interface Props {
+  title: string;
+  description: string;
+  /** Small mono kicker above the h1, e.g. "Docs". */
+  kicker: string;
+  /** Sidebar: one or more groups of in-page anchors (or of other routes). */
+  groups: SideGroup[];
+  /** The id the reader is expected to be at on load, for aria-current. */
+  currentId?: string;
+  lede?: string;
+}
+
+const { title, description, kicker, groups, currentId, lede } = Astro.props;
+const elsewhere = ROUTES.filter((route) => route.href !== '/' && route.href !== Astro.url.pathname);
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="wrap docs">
+    <details class="docs-side" open>
+      <summary>On this page</summary>
+      {
+        groups.map((group) => (
+          <nav aria-label={group.label}>
+            <h2>{group.label}</h2>
+            <ul>
+              {group.items.map((item) => (
+                <li>
+                  <a href={item.href} aria-current={item.href.endsWith(`#${currentId}`) ? 'true' : undefined}>
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))
+      }
+      <nav aria-label="Elsewhere">
+        <h2>Elsewhere</h2>
+        <ul>
+          {elsewhere.map((route) => <li><a href={route.href}>{route.label}</a></li>)}
+        </ul>
+      </nav>
+    </details>
+
+    <article class="docs-body">
+      <p class="docs-kicker">{kicker}</p>
+      <h1>{title}</h1>
+      {lede && <p class="lede">{lede}</p>}
+      <slot />
+    </article>
+  </div>
+
+  <script>
+    // Scroll spy: mark the sidebar anchor for the section in view. Progressive
+    // enhancement only — the sidebar is fully usable without it.
+    const side = document.querySelector('.docs-side');
+    if (side) {
+      const links = Array.from(side.querySelectorAll('a[href^="#"], a[href*="#"]')) as HTMLAnchorElement[];
+      const targets = links
+        .map((link) => {
+          const id = link.hash.slice(1);
+          return id ? document.getElementById(id) : null;
+        })
+        .filter((node): node is HTMLElement => Boolean(node));
+
+      const setCurrent = (id: string) => {
+        for (const link of links) {
+          if (link.hash.slice(1) === id) link.setAttribute('aria-current', 'true');
+          else link.removeAttribute('aria-current');
+        }
+      };
+
+      if (targets.length > 0 && 'IntersectionObserver' in window) {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            const visible = entries
+              .filter((entry) => entry.isIntersecting)
+              .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+            if (visible[0]?.target.id) setCurrent(visible[0].target.id);
+          },
+          { rootMargin: '-96px 0px -60% 0px', threshold: 0 },
+        );
+        for (const target of targets) observer.observe(target);
+      }
+    }
+  </script>
+</BaseLayout>

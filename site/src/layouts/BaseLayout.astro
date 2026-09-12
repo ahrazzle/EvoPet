@@ -1,0 +1,89 @@
+---
+import SiteHeader from '../components/SiteHeader.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Appended to the site name in <title>. Leave false on the landing page. */
+  suffix?: boolean;
+  /** Open Graph image, absolute path from the site root. */
+  image?: string;
+}
+
+const { title, description, suffix = true, image = '/pet-cell-idle-4x.png' } = Astro.props;
+
+const siteName = 'EvoPet';
+const fullTitle = suffix ? `${title} · ${siteName}` : title;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://www.evopet.askaconsult.com');
+const ogImage = new URL(image, Astro.site ?? 'https://www.evopet.askaconsult.com');
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#141026" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical.href} />
+    <meta property="og:image" content={ogImage.href} />
+    <meta name="twitter:card" content="summary" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <SiteHeader />
+    <main id="main">
+      <slot />
+    </main>
+    <SiteFooter />
+
+    <script>
+      // Copy buttons. One delegated handler for the whole site: the button
+      // names its target, and confirmation is announced in the status region
+      // rather than by relabelling the button (which a screen reader would read
+      // twice).
+      document.addEventListener('click', (event) => {
+        const button = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>(
+          '[data-copy-target]',
+        );
+        if (!button) return;
+
+        const target = document.getElementById(button.dataset.copyTarget ?? '');
+        const status = button.parentElement?.querySelector<HTMLElement>('.copy-status');
+        if (!target) return;
+
+        const text = target.textContent ?? '';
+        const done = (message: string) => {
+          if (status) status.textContent = message;
+          window.setTimeout(() => {
+            if (status) status.textContent = '';
+          }, 3000);
+        };
+
+        const fallback = () => {
+          const range = document.createRange();
+          range.selectNodeContents(target);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          done('press ⌘C');
+        };
+
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(text).then(() => done('copied'), fallback);
+        } else {
+          fallback();
+        }
+      });
+    </script>
+  </body>
+</html>

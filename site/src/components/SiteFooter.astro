@@ -1,0 +1,73 @@
+---
+import { LEGACY_SHELL_REPO, REPOS, REPOS_PUBLIC, ROUTES } from '../data/nav';
+
+const year = new Date().getFullYear();
+const routes = ROUTES;
+---
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-about">
+      <p class="footer-mark-row">
+        {/* Standalone here, so it carries its own description rather than an
+            empty alt: nothing nearby names it. */}
+        <img
+          class="footer-mark"
+          src="/evopet-logo.png"
+          width="44"
+          height="44"
+          alt="EvoPet logo: a white pixel-art egg on a blue rounded square."
+          decoding="async"
+        />
+      </p>
+      <h2>EvoPet</h2>
+      <p>
+        A cross-agent desktop companion. The pet half grows from real agent turns; the shell
+        half floats it on the desktop and taps every agent's hook payload.
+      </p>
+      <p>
+        <a href="/library">Browse the library</a> · <a href="/docs">Read the docs</a>
+      </p>
+    </div>
+
+    <nav aria-label="Site sections">
+      <h2>Site</h2>
+      <ul>
+        {routes.map((route) => <li><a href={route.href}>{route.label}</a></li>)}
+      </ul>
+    </nav>
+
+    <nav aria-label="Repositories">
+      <h2>Repositories</h2>
+      <ul>
+        {
+          REPOS.map((repo) => (
+            <li>
+              <a href={repo.href} data-external rel="noopener noreferrer">{repo.label}</a> — {repo.note}
+            </li>
+          ))
+        }
+      </ul>
+      <p class="lineage">
+        The pet half continues the <strong>TamaHermes</strong> lineage — it descends from TamaCodex,
+        which still runs on its own — and the shell half descends from Petdex. An earlier mirror of
+        that shell was published as <code>{LEGACY_SHELL_REPO}</code>.
+      </p>
+    </nav>
+
+    <p class="honesty">
+      {
+        !REPOS_PUBLIC && (
+          <>
+            <strong>EvoPet's own repository is not public yet.</strong> The EvoPet link above points
+            at where it will live; nothing on this site claims it is cloneable today. The Pet repo,
+            TamaCodex and Petdex are public.{' '}
+          </>
+        )
+      }
+      The library service is written and passes its own end-to-end round trip, but it is not
+      deployed, and no monitored takedown address exists for it yet — the site does not assert one.
+      Copyright {year}.
+    </p>
+  </div>
+</footer>
