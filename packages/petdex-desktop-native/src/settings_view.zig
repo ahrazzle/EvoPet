@@ -466,6 +466,88 @@ fn petsTop(ui: *AppUi, model: *const Model, filter: []const u8) AppUi.Node {
     });
 }
 
+/// One installed pet's row.
+///
+/// A package that is not evolution-capable is still listed — it is
+/// installed, and it is what the deep link and the cloud library find on
+/// disk — but it cannot be selected: it has no stages for the evolution
+/// system to draw. The row says so with `incompatible_note` in the slot
+/// the install root normally occupies, and its Select is inert, so the
+/// exclusion is stated rather than left as a dead button.
+fn installedPetRow(ui: *AppUi, entry: *const catalog_mod.CatalogEntry, index: usize, active: bool, thumbs: ThumbAtlas) AppUi.Node {
+    const selectable = entry.capable;
+    const selected = selectable and active;
+    var thumb = ui.image(.{
+        .width = 40,
+        .height = 44,
+        .image = if (thumbs.ready[index]) thumbs.image else 0,
+        .semantics = .{ .label = entry.slice() },
+    });
+    thumb.widget.image_src = geometry.RectF.init(
+        @as(f32, @floatFromInt(index)) * thumbs.cell_w,
+        0,
+        thumbs.cell_w,
+        thumbs.cell_h,
+    );
+    thumb.widget.image_fit = .contain;
+    thumb.widget.image_sampling = .nearest;
+    return ui.el(.list_item, .{
+        // The reason wraps to two lines, so an excluded row is taller than
+        // a selectable one rather than truncating the explanation.
+        .height = if (selectable) 56 else 76,
+        .padding = 8,
+        .gap = 12,
+        .cross = .center,
+        .on_press = if (selectable) Msg{ .select_pet = @intCast(index) } else null,
+        .selected = selected,
+        .style_tokens = .{ .background = .surface, .radius = .md },
+        .semantics = .{ .label = entry.slice() },
+    }, .{
+        thumb,
+        ui.column(.{ .grow = 1, .main = .center }, .{
+            ui.text(.{}, entry.slice()),
+            if (selectable)
+                ui.text(.{ .size = .sm, .style_tokens = .{ .foreground = .text_muted } }, entry.rootSlice())
+            else
+                mutedParagraph(ui, catalog_mod.incompatible_note),
+        }),
+        if (!selectable)
+            ui.button(.{ .size = .sm, .width = 64, .variant = .primary, .disabled = true }, "Select")
+        else if (selected)
+            ui.button(.{ .size = .sm, .width = 64, .variant = .primary, .disabled = true }, "Active")
+        else
+            ui.button(.{ .size = .sm, .width = 64, .variant = .primary, .on_press = Msg{ .select_pet = @intCast(index) } }, "Select"),
+        ui.button(.{ .size = .sm, .variant = .secondary, .on_press = Msg{ .open_pet_page = @intCast(index) } }, "Open"),
+    });
+}
+
+/// The auto-upload preference: the app half of a switch the hatch CLI
+/// reads from the same file (`~/.evopet/settings.json`).
+///
+/// The user's decision was that publishing is the default and the switch
+/// exists for someone who goes looking for it, so the row states what
+/// publishing does and how to stop it instead of asking a question. Its
+/// state comes from the model, which is loaded from the file - never
+/// from a second copy of the answer kept here.
+fn librarySection(ui: *AppUi, model: *const Model) AppUi.Node {
+    return ui.column(.{ .gap = 12 }, .{
+        ui.text(.{ .size = .lg }, "Pet library"),
+        ui.el(.panel, .{ .style_tokens = .{ .background = .surface, .radius = .md } }, .{
+            ui.row(.{ .padding = 12, .cross = .center, .gap = 12 }, .{
+                ui.column(.{ .grow = 1 }, .{
+                    ui.text(.{}, "Upload new pets automatically"),
+                    mutedParagraph(ui, "A newly hatched pet is published to the EvoPet library so others can find it; turn this off to keep every pet local"),
+                }),
+                ui.el(.switch_control, .{
+                    .selected = model.auto_upload,
+                    .on_toggle = .toggle_auto_upload,
+                    .semantics = .{ .label = "Upload new pets automatically" },
+                }, .{}),
+            }),
+        }),
+    });
+}
+
 pub fn settingsView(ui: *AppUi, model: *const Model, icons: IconAtlas, thumbs: ThumbAtlas, cloud_images: CloudImages) AppUi.Node {
     var rows: [max_catalog]AppUi.Node = undefined;
     var shown: usize = 0;
@@ -477,42 +559,7 @@ pub fn settingsView(ui: *AppUi, model: *const Model, icons: IconAtlas, thumbs: T
             if (!petMatchesFilter(entry.slice(), filter)) continue;
             matches += 1;
             if (shown >= max_visible) continue;
-            const active = i == model.active_pet;
-            var thumb = ui.image(.{
-                .width = 40,
-                .height = 44,
-                .image = if (thumbs.ready[i]) thumbs.image else 0,
-                .semantics = .{ .label = entry.slice() },
-            });
-            thumb.widget.image_src = geometry.RectF.init(
-                @as(f32, @floatFromInt(i)) * thumbs.cell_w,
-                0,
-                thumbs.cell_w,
-                thumbs.cell_h,
-            );
-            thumb.widget.image_fit = .contain;
-            thumb.widget.image_sampling = .nearest;
-            rows[shown] = ui.el(.list_item, .{
-                .height = 56,
-                .padding = 8,
-                .gap = 12,
-                .cross = .center,
-                .on_press = Msg{ .select_pet = @intCast(i) },
-                .selected = active,
-                .style_tokens = .{ .background = .surface, .radius = .md },
-                .semantics = .{ .label = entry.slice() },
-            }, .{
-                thumb,
-                ui.column(.{ .grow = 1, .main = .center }, .{
-                    ui.text(.{}, entry.slice()),
-                    ui.text(.{ .size = .sm, .style_tokens = .{ .foreground = .text_muted } }, entry.rootSlice()),
-                }),
-                if (active)
-                    ui.button(.{ .size = .sm, .width = 64, .variant = .primary, .disabled = true }, "Active")
-                else
-                    ui.button(.{ .size = .sm, .width = 64, .variant = .primary, .on_press = Msg{ .select_pet = @intCast(i) } }, "Select"),
-                ui.button(.{ .size = .sm, .variant = .secondary, .on_press = Msg{ .open_pet_page = @intCast(i) } }, "Open"),
-            });
+            rows[shown] = installedPetRow(ui, entry, i, i == model.active_pet, thumbs);
             shown += 1;
         }
     } else {
@@ -743,6 +790,8 @@ pub fn settingsView(ui: *AppUi, model: *const Model, icons: IconAtlas, thumbs: T
             }),
         }),
         ui.el(.stack, .{ .height = 10 }, .{}),
+        librarySection(ui, model),
+        ui.el(.stack, .{ .height = 10 }, .{}),
         updatesSection(ui, model),
         // Trailing spacer: the column's own bottom padding is not part
         // of the scroll extent, so the last card needs explicit air.
@@ -774,4 +823,82 @@ test "DSH command errors do not ask for a global pnpm install" {
         "Plugin command failed - check npx and network",
         agentStatusCaption(info, false, false, true),
     );
+}
+
+test "an excluded package is listed with its reason and cannot be selected" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    var ui = AppUi.init(arena_state.allocator());
+
+    const ready = [_]bool{false};
+    const thumbs = ThumbAtlas{ .image = 0, .ready = &ready, .cell_w = 48, .cell_h = 52 };
+
+    var entry = catalog_mod.CatalogEntry{};
+    @memcpy(entry.name[0..4], "demo");
+    entry.len = 4;
+    @memcpy(entry.root[0..12], ".petdex/pets");
+    entry.root_len = 12;
+
+    // Excluded: the reason takes the slot the install root normally fills,
+    // Select is inert, and the row itself dispatches nothing.
+    const excluded = installedPetRow(&ui, &entry, 0, false, thumbs);
+    try std.testing.expect(excluded.on_press == null);
+    try std.testing.expectEqualStrings(catalog_mod.incompatible_note, excluded.nodes[1].nodes[1].widget.text);
+    try std.testing.expectEqualStrings("Select", excluded.nodes[2].widget.text);
+    try std.testing.expect(excluded.nodes[2].widget.state.disabled);
+
+    // Capable: the install root is back, the row selects, and the pet that
+    // is on screen still says Active.
+    entry.capable = true;
+    const pickable = installedPetRow(&ui, &entry, 0, false, thumbs);
+    try std.testing.expect(pickable.on_press != null);
+    try std.testing.expectEqualStrings(".petdex/pets", pickable.nodes[1].nodes[1].widget.text);
+    try std.testing.expectEqualStrings("Select", pickable.nodes[2].widget.text);
+    try std.testing.expect(!pickable.nodes[2].widget.state.disabled);
+
+    const active = installedPetRow(&ui, &entry, 0, true, thumbs);
+    try std.testing.expectEqualStrings("Active", active.nodes[2].widget.text);
+    try std.testing.expect(active.widget.state.selected);
+    // An excluded package is never drawn, so it can never read as Active.
+    entry.capable = false;
+    const excluded_active = installedPetRow(&ui, &entry, 0, true, thumbs);
+    try std.testing.expect(!excluded_active.widget.state.selected);
+}
+
+test "the auto-upload row states the setting and follows the file" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    var ui = AppUi.init(arena_state.allocator());
+
+    var model = Model{};
+    const on = librarySection(&ui, &model);
+    try std.testing.expectEqualStrings("Pet library", on.nodes[0].widget.text);
+
+    const row = on.nodes[1].nodes[0];
+    try std.testing.expectEqualStrings("Upload new pets automatically", row.nodes[0].nodes[0].widget.text);
+    try std.testing.expectEqualStrings(
+        "A newly hatched pet is published to the EvoPet library so others can find it; turn this off to keep every pet local",
+        row.nodes[0].nodes[1].widget.text,
+    );
+    const toggle = row.nodes[1];
+    try std.testing.expectEqualStrings("Upload new pets automatically", toggle.widget.semantics.label);
+    try std.testing.expect(toggle.on_toggle != null);
+    // The row must emit this one message — the switch is the only thing
+    // that writes the shared file — so the check is the tag, not merely
+    // that some handler is attached. `std.meta.Tag(Msg)` is the type the
+    // tag actually has; comparing the union value against a bare
+    // `.toggle_auto_upload` would compare u7 against a tag enum.
+    try std.testing.expectEqual(
+        std.meta.Tag(Msg).toggle_auto_upload,
+        std.meta.activeTag(toggle.on_toggle.?),
+    );
+    // Default on, which is the whole decision: a user who never opens
+    // Settings still sees a switch that says so.
+    try std.testing.expect(toggle.widget.state.selected);
+
+    // The switch is a view of the setting, not a copy of it: the file's
+    // other answer renders as off with no other change.
+    model.auto_upload = false;
+    const off = librarySection(&ui, &model);
+    try std.testing.expect(!off.nodes[1].nodes[0].nodes[1].widget.state.selected);
 }

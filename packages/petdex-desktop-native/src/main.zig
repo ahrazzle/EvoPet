@@ -138,6 +138,7 @@ pub const Msg = union(enum) {
     update_boot_check: native_sdk.EffectTimer,
     check_updates,
     toggle_update_checks,
+    toggle_auto_upload,
     update_response: native_sdk.EffectResponse,
     homebrew_done: native_sdk.EffectExit,
     homebrew_timeout: native_sdk.EffectTimer,
@@ -330,6 +331,11 @@ pub const Model = struct {
     dsh_error: bool = false,
     herdr_status: herdr_status.Status = .absent,
     update_checks_enabled: bool = true,
+    /// The shared auto-upload preference: whether a hatch publishes a
+    /// pet to the EvoPet library. On unless `~/.evopet/settings.json`
+    /// says otherwise, and the switch in Settings is a view of that
+    /// file rather than a second copy of the answer (evopet_settings).
+    auto_upload: bool = true,
     update_phase: updates.Phase = .idle,
     update_manual: bool = false,
     latest_version: [32]u8 = @splat(0),
@@ -423,6 +429,7 @@ fn onAppearance(appearance: native_sdk.platform.Appearance) ?Msg {
 
 // Catalog table and slug lookup live in catalog.zig (#613).
 const catalog_mod = @import("catalog.zig");
+const evopet_settings = @import("evopet_settings.zig");
 const settings_view = @import("settings_view.zig");
 pub const max_catalog = catalog_mod.max_catalog;
 pub const CatalogEntry = catalog_mod.CatalogEntry;
@@ -727,6 +734,10 @@ fn catalogAppend(slug: []const u8, active: usize) ?usize {
     };
     var e = &catalog[slot];
     e.* = .{};
+    // The bytes are on disk by the time the queue appends: a package that
+    // just arrived incapable is listed and explained like any other, and
+    // the activation below goes through the same gate as a click.
+    e.capable = petPackageCapable(root, slug);
     @memcpy(e.name[0..slug.len], slug);
     e.len = slug.len;
     @memcpy(e.root[0..root.len], root);
@@ -1216,8 +1227,34 @@ fn petNameOk(name: []const u8) bool {
     return true;
 }
 
-/// Scan both pet roots into the catalog (name + which root), sorted by
-/// scan order. Runs once in main() with the io handle.
+/// Cap on the pet.json bytes read to test capability. Real manifests are
+/// a few hundred bytes; the bound keeps a corrupt or hostile file from
+/// being pulled into the scan buffer.
+const max_pet_json_bytes: usize = 16 * 1024;
+
+/// Whether the package at `<home>/<root>/<slug>` is evolution-capable:
+/// its pet.json carries the `evopet` block. Read from disk on every scan
+/// rather than remembered anywhere, because the marker is written by the
+/// compiler into the package itself.
+fn petPackageCapable(root: []const u8, slug: []const u8) bool {
+    const home = env_home orelse return false;
+    var path_buf: [512]u8 = undefined;
+    const path = std.fmt.bufPrint(&path_buf, "{s}/{s}/{s}/pet.json", .{ home, root, slug }) catch return false;
+    var json_buf: [max_pet_json_bytes]u8 = undefined;
+    const json = cReadFile(path, &json_buf) orelse return false;
+    return catalog_mod.hasEvopetBlock(json);
+}
+
+/// Scan both pet roots into the catalog (name + which root + whether the
+/// package is evolution-capable), sorted by scan order. Runs once in
+/// main() with the io handle.
+///
+/// Every installed directory still lands in the catalog: this is the
+/// list the deep link and the cloud library read to tell "on disk" from
+/// "must download", and a package that silently vanished from it would
+/// be re-downloaded. What capability decides is whether the app may
+/// draw it — `select_pet` and `advancePet` refuse the rest, and Settings
+/// lists them with the reason.
 fn scanCatalog(io: std.Io, allocator: std.mem.Allocator) void {
     const home = env_home orelse return;
     const roots = [_][]const u8{ ".petdex/pets", ".codex/pets" };
@@ -1237,6 +1274,7 @@ fn scanCatalog(io: std.Io, allocator: std.mem.Allocator) void {
             }
             if (duplicate) continue;
             var e = &catalog[catalog_mod.catalog_len];
+            e.capable = petPackageCapable(root, entry.name);
             @memcpy(e.name[0..entry.name.len], entry.name);
             e.len = entry.name.len;
             @memcpy(e.root[0..root.len], root);
@@ -1253,6 +1291,38 @@ var pet_display_name: []const u8 = "";
 fn settingsPath(buf: []u8) ?[]const u8 {
     const home = env_home orelse return null;
     return std.fmt.bufPrint(buf, "{s}/.petdex/desktop-native-settings.json", .{home}) catch null;
+}
+
+/// The shared auto-upload file, the one the hatch CLI reads too
+/// (`~/.evopet/settings.json`). Deliberately not `settingsPath` above:
+/// those are two different contracts, and the CLI knows only this one.
+fn autoUploadPath(buf: []u8) ?[]const u8 {
+    const home = env_home orelse return null;
+    return evopet_settings.pathFor(buf, home);
+}
+
+/// Read the auto-upload preference from disk. Called at boot and again
+/// every time Settings opens, so a change the hatch CLI made in between
+/// shows up in the switch instead of being frozen at boot.
+fn loadAutoUpload() bool {
+    var path_buf: [512]u8 = undefined;
+    const path = autoUploadPath(&path_buf) orelse return evopet_settings.default_auto_upload;
+    var json_buf: [4096]u8 = undefined;
+    return evopet_settings.readFromPath(path, &json_buf);
+}
+
+/// Persist the auto-upload preference. The file is created here and only
+/// here, on the first toggle: a user who never opens Settings keeps
+/// whatever the CLI left, and is never handed a file to explain.
+fn saveAutoUpload(enabled: bool) void {
+    var path_buf: [512]u8 = undefined;
+    const path = autoUploadPath(&path_buf) orelse return;
+    // A write that failed would leave the file (and so the hatch CLI) on
+    // the previous answer while the switch shows the new one. Worth a line
+    // in the log rather than a silent disagreement.
+    if (!evopet_settings.writeToPath(path, enabled)) {
+        std.debug.print("petdex: could not write {s}; a hatch still sees the previous auto-upload setting\n", .{path});
+    }
 }
 
 const custom_font_id: canvas.FontId = canvas.min_registered_font_id;
@@ -1858,7 +1928,15 @@ fn resolveInitialPet(io: std.Io, allocator: std.mem.Allocator, environ_map: *std
             }
         }
     }
-    const index = catalogIndexOf(wanted) orelse 0;
+    // The saved pet is a preference, not a promise: the evolution build
+    // draws EvoPet packages only, so a settings file naming a stock pet
+    // resolves to the first capable one instead of drawing it.
+    const entries = catalog[0..catalog_mod.catalog_len];
+    const fallback = catalog_mod.firstCapableIndex(entries) orelse 0;
+    const index = if (catalogIndexOf(wanted)) |saved|
+        (if (catalog_mod.selectableAt(entries, saved)) saved else fallback)
+    else
+        fallback;
     initial_pet = @intCast(index);
     pet_display_name = catalog[index].slice();
 }
@@ -1973,14 +2051,24 @@ fn dayFromWallMs(wall_ms: i64) u32 {
 /// sheets the codec refuses, at most one full loop. Rides the same
 /// select_pet Msg the settings list dispatches, so activation cannot
 /// drift between a click, a rotation, and a shuffle.
+///
+/// Confined to evolution-capable entries: a stock package has no stages
+/// for the evolution system to advance, so rotation must never land on
+/// one. With a single capable package `nextCapableIndex` returns null and
+/// the day rolls over without swapping the pet, which is the honest
+/// answer — there is nowhere legal to go.
 fn advancePet(model: *Model, fx: *Effects) void {
-    if (catalog_mod.catalog_len < 2) return;
-    var offset: u32 = 1;
-    while (offset < catalog_mod.catalog_len) : (offset += 1) {
-        const idx: u32 = (model.active_pet + offset) % @as(u32, @intCast(catalog_mod.catalog_len));
-        update(model, .{ .select_pet = idx }, fx);
+    const entries = catalog[0..catalog_mod.catalog_len];
+    // At most one pass over the catalog, so a capable set whose sheets all
+    // fail to decode ends the attempt instead of cycling through itself.
+    var from: usize = @intCast(model.active_pet);
+    var attempts: usize = 0;
+    while (attempts < entries.len) : (attempts += 1) {
+        const idx = catalog_mod.nextCapableIndex(entries, from) orelse return;
+        update(model, .{ .select_pet = @intCast(idx) }, fx);
         // select_pet only commits after a successful sheet load.
         if (model.active_pet == idx) return;
+        from = idx;
     }
 }
 
@@ -2174,6 +2262,7 @@ pub fn boot(model: *Model, fx: *Effects) void {
     model.rotate_pets = initial_rotate_pets;
     model.rotation_day = initial_rotation_day;
     model.update_checks_enabled = initial_update_checks;
+    model.auto_upload = loadAutoUpload();
     model.last_update_check_ms = initial_last_update_check_ms;
     @memcpy(model.latest_version[0..initial_latest_version_len], initial_latest_version[0..initial_latest_version_len]);
     model.latest_version_len = initial_latest_version_len;
@@ -2194,12 +2283,23 @@ pub fn boot(model: *Model, fx: *Effects) void {
     // First point where the platform codec is reachable: `init_fx` runs
     // on the loop thread right after the runtime binds services onto fx.
     if (catalog_mod.catalog_len == 0) return;
+    // "Pets on disk, none of them an EvoPet package" is its own state, and
+    // the one the gate creates. It is not corruption, so it must not fall
+    // through to the decode-failure message below.
+    const entries = catalog[0..catalog_mod.catalog_len];
+    if (catalog_mod.capableCount(entries) == 0) {
+        std.debug.print("petdex: {d} pet(s) installed, none evolution-capable (pet.json has no evopet block); nothing to draw\n", .{catalog_mod.catalog_len});
+        return;
+    }
     // A single unreadable sheet used to leave an empty window even with
     // a full catalog behind it (one shipped pet is a 3-byte stub), so
     // the chosen pet is a preference here, not a requirement.
     var chosen: ?usize = null;
     for (0..catalog_mod.catalog_len) |offset| {
         const index = (initial_pet + offset) % catalog_mod.catalog_len;
+        // The fallback is bounded to the capable set too: falling back
+        // onto a stock package would draw a pet nothing can advance.
+        if (!catalog_mod.selectableAt(entries, index)) continue;
         if (loadSheetForPet(fx, &catalog[index])) {
             chosen = index;
             break;
@@ -2498,6 +2598,10 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             }
         },
         .open_settings => {
+            // The switch is a view of the shared file, not a cached copy
+            // of it: the hatch CLI can change it between two openings, so
+            // re-read before the window is built.
+            model.auto_upload = loadAutoUpload();
             if (env_home) |home| {
                 model.agents = agent_hooks.scan(boot_allocator, home);
                 model.herdr_status = herdr_status.detect(boot_allocator, home);
@@ -2653,6 +2757,12 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             }
             saveSettings(model);
         },
+        .toggle_auto_upload => {
+            model.auto_upload = !model.auto_upload;
+            // Immediate, like the other switches: the file is the
+            // agreement with the CLI, not a note to flush at exit.
+            saveAutoUpload(model.auto_upload);
+        },
         .update_response => |response| {
             if (model.update_cancel_pending) {
                 const restart = model.update_restart_after_cancel and model.update_checks_enabled;
@@ -2721,7 +2831,11 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
         .brew_command_copied => |result| model.brew_command_copied = result.outcome == .ok,
         .close_pet => closePet(model, fx),
         .select_pet => |index| {
-            if (index >= catalog_mod.catalog_len) return;
+            // The gate. A stock package is listed — and explained in
+            // Settings — but never drawn. Refusing here covers every caller
+            // at once, because a click, a rotation, a shuffle, a deep link
+            // and an install that just finished all arrive as this one Msg.
+            if (!catalog_mod.selectableAt(catalog[0..catalog_mod.catalog_len], index)) return;
             // `index == active_pet` is a no-op only once a sheet is up.
             // On a first run active_pet is 0 and the pet just downloaded
             // lands at 0 too, so the early return skipped the very
@@ -3226,7 +3340,9 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             // epoch-day (boot included, so an app that slept through
             // midnight — or was closed — still rotates when it next
             // runs). select_pet inside advancePet stamps today and
-            // persists, closing the loop.
+            // persists, closing the loop. advancePet carries the capable
+            // bound, so a day with nowhere legal to rotate to stamps the
+            // day and leaves the pet on screen alone.
             if (model.rotate_pets and model.rotation_day != dayFromWallMs(now)) {
                 model.rotation_day = dayFromWallMs(now);
                 advancePet(model, fx);
@@ -4323,6 +4439,25 @@ fn bubbleShouldFlip(model: *const Model, space_above: f64, needed: f64) bool {
     return space_above < required;
 }
 
+/// The one reason sentence, laid out for the 192pt pet window. That label
+/// truncates instead of wrapping, so the breaks are hand-placed inside the
+/// same per-line budget the decode-failure copy uses — and a test pins the
+/// reassembled lines to `catalog_mod.incompatible_note`, so the narrow
+/// surface cannot drift from the Settings row wording.
+const no_capable_body = "not an\nEvoPet package\n\u{2014} no\nevolution\nstages";
+
+test "the narrow empty state carries the one reason sentence verbatim" {
+    // The pet window cannot wrap, so the sentence is broken by hand; this
+    // is what keeps the breaks from quietly rewording it.
+    var joined: [96]u8 = undefined;
+    var len: usize = 0;
+    for (no_capable_body) |c| {
+        joined[len] = if (c == '\n') ' ' else c;
+        len += 1;
+    }
+    try std.testing.expectEqualStrings(catalog_mod.incompatible_note, joined[0..len]);
+}
+
 /// What the pet window shows before there is a pet to draw.
 ///
 /// This used to be a bare panel: a grey rectangle with no text and no
@@ -4341,8 +4476,16 @@ fn bubbleShouldFlip(model: *const Model, space_above: f64, needed: f64) bool {
 /// Ubuntu ships none for webp, so every pet fails while sitting right
 /// there on disk. Offering that user a download sends them in exactly
 /// the wrong direction.
+///
+/// The capability gate added a third: pets on disk that are not EvoPet
+/// packages. Nothing is corrupt there, they are excluded, so they get the
+/// sentence the Settings rows carry rather than the decode-failure copy.
 fn emptyStateView(ui: *AppUi, model: *const Model) AppUi.Node {
     const has_pets = catalog_mod.catalog_len > 0;
+    // Pets on disk that the gate refuses are not a decode failure: they
+    // get the same sentence the Settings rows carry, not the corrupt-sheet
+    // wording. One reason, one vocabulary, on every surface that shows it.
+    const has_capable = catalog_mod.capableCount(catalog[0..catalog_mod.catalog_len]) > 0;
     // The pet window is 192pt wide, so these have to fit a narrow column
     // rather than a sentence's worth of room: the first attempt read
     // "Pets found, none could be drawn. Linux needs webp-pixbuf-loader."
@@ -4350,6 +4493,8 @@ fn emptyStateView(ui: *AppUi, model: *const Model) AppUi.Node {
     // since the label truncates instead of wrapping.
     const body = if (!has_pets)
         "No pet yet"
+    else if (!has_capable)
+        no_capable_body
     else if (builtin.os.tag == .linux)
         "Pets found,\nnone could\nbe drawn.\n\nLinux needs\nwebp-pixbuf-\nloader."
     else
@@ -5371,10 +5516,15 @@ test "install queue keeps activation per pet" {
 test "empty-state copy fits the pet window" {
     // The label truncates rather than wrapping, and the window is 192pt,
     // so a sentence renders as an ellipsis (which is how the first
-    // attempt shipped). Every line has to stand alone.
+    // attempt shipped). Every line has to stand alone — including the
+    // capability gate's reason, which shares the window.
     const longest = "Pets found,\nnone could\nbe drawn.\n\nLinux needs\nwebp-pixbuf-\nloader.";
     var it = std.mem.splitScalar(u8, longest, '\n');
     while (it.next()) |line| {
+        try std.testing.expect(line.len <= 14);
+    }
+    var gate_it = std.mem.splitScalar(u8, no_capable_body, '\n');
+    while (gate_it.next()) |line| {
         try std.testing.expect(line.len <= 14);
     }
 }
@@ -6647,4 +6797,34 @@ test "an unchanged bubble keeps its deadline when another one updates" {
     syncBubbleDeadlines(&model, previous[0..2], previous_deadlines[0..2], 10_000);
     try std.testing.expectEqual(@as(i64, 4000), model.bubble_expires_at_ms[0]);
     try std.testing.expectEqual(@as(i64, 15_000), model.bubble_expires_at_ms[1]);
+}
+
+test "the auto-upload helpers read the shared file, default on, and write it" {
+    const saved_home = env_home;
+    defer env_home = saved_home;
+    var test_dir = std.testing.tmpDir(.{});
+    defer test_dir.cleanup();
+    var home_buf: [160]u8 = undefined;
+    env_home = std.fmt.bufPrint(&home_buf, ".zig-cache/tmp/{s}", .{test_dir.sub_path[0..]}) catch unreachable;
+
+    // No file yet: on, and reading did not create one.
+    try std.testing.expect(loadAutoUpload());
+    var path_buf: [512]u8 = undefined;
+    const path = autoUploadPath(&path_buf).?;
+    var probe: [64]u8 = undefined;
+    try std.testing.expect(cReadFile(path, &probe) == null);
+
+    // The first toggle is what creates it.
+    saveAutoUpload(false);
+    try std.testing.expect(!loadAutoUpload());
+
+    // What the hatch CLI writes is what the switch reads back.
+    try std.testing.expect(plat.writeFile(path, "{\"autoUpload\": true}"));
+    try std.testing.expect(loadAutoUpload());
+
+    // A malformed file resolves to the default and is left alone.
+    try std.testing.expect(plat.writeFile(path, "{\"autoUpload\": "));
+    try std.testing.expect(loadAutoUpload());
+    var after: [64]u8 = undefined;
+    try std.testing.expectEqualStrings("{\"autoUpload\": ", cReadFile(path, &after).?);
 }
