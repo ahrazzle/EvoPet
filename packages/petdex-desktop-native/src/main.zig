@@ -3373,7 +3373,10 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             // orientation as the compositor anchor, rather than showing a
             // flipped tail for one frame until the next frame-clock tick.
             if (builtin.target.os.tag == .linux and bubbleActive(model)) syncBubbleWindow(model, fx);
-            if (model.waiting_sound and shouldEscalate(model.state, model.waiting_since_ms, model.waiting_escalated, now)) {
+            // Escalation rides the live pending predicate, not the sprite
+            // state, so the attention loop's jumping/waving does not mute
+            // the 120s follow-up chime while a waiting card is still up.
+            if (model.waiting_sound and hasPendingAttention(model) and !model.waiting_escalated and now - model.waiting_since_ms >= waiting_escalation_ms) {
                 model.waiting_escalated = true;
                 playWaitingChime(fx);
             }
@@ -4316,6 +4319,17 @@ fn expireBubbles(model: *Model, now_ms: i64) bool {
     var kept: usize = 0;
     var dropped = false;
     for (0..model.bubbles_len) |i| {
+        // Waiting approval/clarification cards are exempt while pending;
+        // the exemption rides the bubble's own agent_state, not the
+        // sprite's current state, so the attention loop's jumping/waving
+        // does not cancel it. Ordinary bubbles keep the usual deadline.
+        const is_waiting = std.mem.eql(u8, model.bubbles[i].agentStateSlice(), "waiting");
+        if (is_waiting) {
+            model.bubbles[kept] = model.bubbles[i];
+            model.bubble_expires_at_ms[kept] = model.bubble_expires_at_ms[i];
+            kept += 1;
+            continue;
+        }
         if (bubbleLifetimeExpired(model.bubble_expires_at_ms[i], now_ms, model.state)) {
             // Tell the server too: a slot the app stopped drawing must
             // not keep a session alive against the eviction policy.
@@ -5858,7 +5872,101 @@ test "attention does not fire for ordinary busy card, no zombie on expiry or win
     try std.testing.expect(!hasPendingAttention(&model));
 }
 
+test "waiting approval card survives its lifetime while attention loop drives jumping/waving and resumes expiry after resolution" {
+    // Real expiry path regression for ed528c9: a titled busy=false waiting
+    // bubble (the exact approval-request shape) gets a 27s deadline via the
+    // live setting. While the attention loop alternates model.state to
+    // jumping/waving, the card must not be dropped at or past that deadline;
+    // ordinary cards still must. After the prompt is resolved/dismissed the
+    // exemption is gone and the deadline applies again.
+    var model: Model = .{};
+    model.bubble_lifetime_secs = 27;
+    // Titled, busy=false waiting bubble — what hook_runner posts for
+    // approval-request / clarification with a session title.
+    testPushBubbleTitled(&model, "s1", "Waiting for approval…", "session title", false);
+    @memcpy(model.bubbles[0].agent_state[0..7], "waiting");
+    model.bubbles[0].agent_state_len = 7;
+    try std.testing.expect(hasPendingAttention(&model));
 
+    const now: i64 = 1_000_000;
+    // Deadline that syncBubbleDeadlines would stamp with the live 27s setting.
+    const no_previous = [_]hook_server.Bubble{};
+    const no_deadlines = [_]i64{};
+    syncBubbleDeadlines(&model, &no_previous, &no_deadlines, now);
+    try std.testing.expectEqual(now + 27_000, model.bubble_expires_at_ms[0]);
+    // Sanity: per-bubble direct check mirrors the global predicate.
+    try std.testing.expect(std.mem.eql(u8, model.bubbles[0].agentStateSlice(), "waiting"));
+
+    // While the attention loop drives jumping/waving, past the 27s mark the
+    // waiting card must survive — this is the ed528c9 failure point where
+    // bubbleLifetimeExpired(model.state != .waiting) would have dropped it.
+    model.state = .jumping;
+    try std.testing.expect(!expireBubbles(&model, now + 28_000));
+    try std.testing.expectEqual(@as(usize, 1), model.bubbles_len);
+    try std.testing.expect(hasPendingAttention(&model));
+
+    model.state = .waving;
+    try std.testing.expect(!expireBubbles(&model, now + 28_000));
+    try std.testing.expectEqual(@as(usize, 1), model.bubbles_len);
+
+    // Alternating again still protects.
+    model.state = .jumping;
+    try std.testing.expect(!expireBubbles(&model, now + 60_000));
+    try std.testing.expectEqual(@as(usize, 1), model.bubbles_len);
+
+    // Ordinary non-waiting bubble alongside the waiting one must still expire
+    // on its own clock even while the loop is in jumping/waving — do not make
+    // every jumping/waving bubble immortal.
+    testPushBubbleTitled(&model, "s2", "Working…", "other title", false);
+    model.bubbles[1].agent_state_len = 0;
+    @memset(model.bubbles[1].agent_state[0..], 0);
+    // Force a 5s deadline for the ordinary bubble (busy=false titled, so it
+    // follows the lifetime, not the phantom).
+    model.bubble_expires_at_ms[1] = now + 5_000;
+    model.state = .waving;
+    try std.testing.expect(expireBubbles(&model, now + 6_000));
+    // The ordinary card is gone, the waiting approval card remains.
+    try std.testing.expectEqual(@as(usize, 1), model.bubbles_len);
+    try std.testing.expectEqualStrings("s1", model.bubbles[0].sessionSlice());
+    try std.testing.expect(hasPendingAttention(&model));
+
+    // Resolution: the bubble reports approval-response/post/stop and its
+    // agent_state is overwritten away from waiting. The exemption must lift
+    // and the already-past deadline should now drop it on the next tick.
+    @memset(model.bubbles[0].agent_state[0..], 0);
+    model.bubbles[0].agent_state_len = 0;
+    try std.testing.expect(!hasPendingAttention(&model));
+    // Still past the 27s deadline from above (now+28s), so it expires now.
+    model.state = .jumping;
+    try std.testing.expect(expireBubbles(&model, now + 28_000));
+    try std.testing.expectEqual(@as(usize, 0), model.bubbles_len);
+
+    // Dismissal path as well: push again, then dismiss the waiting card
+    // entirely before the deadline — no zombie, no extra timer.
+    testPushBubbleTitled(&model, "s3", "Waiting for you…", "session title", false);
+    @memcpy(model.bubbles[0].agent_state[0..7], "waiting");
+    model.bubbles[0].agent_state_len = 7;
+    syncBubbleDeadlines(&model, &no_previous, &no_deadlines, now);
+    model.state = .waving;
+    try std.testing.expect(!expireBubbles(&model, now + 28_000));
+    try std.testing.expectEqual(@as(usize, 1), model.bubbles_len);
+    // Simulate dismissal via session drop / panel close: clear the stack.
+    model.bubbles_len = 0;
+    model.bubble_expires_at_ms[0] = -1;
+    try std.testing.expect(!hasPendingAttention(&model));
+    try std.testing.expect(!expireBubbles(&model, now + 28_000));
+
+    // Phantom-busy ceiling unchanged: an untitled busy card (no title, so no
+    // attributable conversation) still gets a 180s bound even when the
+    // configured lifetime is the waiting card's 27s.
+    model.bubble_lifetime_secs = 27;
+    testPushBubble(&model, "proc_phantom", "Called process_manage", true, -1);
+    syncBubbleDeadlines(&model, &no_previous, &no_deadlines, now);
+    try std.testing.expect(model.bubble_expires_at_ms[0] == now + 180_000);
+    model.state = .jumping;
+    try std.testing.expect(!expireBubbles(&model, now + 27_000));
+    try std.testing.expect(expireBubbles(&model, now + 181_000));
+}
 
 test {
     // `zig build test` only collects tests from the root module FILE,
