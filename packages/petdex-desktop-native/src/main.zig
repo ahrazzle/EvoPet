@@ -1513,7 +1513,6 @@ fn readPetSheetBytes(entry: *const CatalogEntry, buf: []u8) ?[]const u8 {
 fn checkPetPackageChanges(entry: *const CatalogEntry) bool {
     const home = env_home orelse return false;
 
-    var path_buf: [512]u8 = undefined;
     var pj_path: [512]u8 = undefined;
     const pj_path_str = std.fmt.bufPrint(
         &pj_path,
