@@ -7311,10 +7311,9 @@ test "pet package change detection detects pet.json mtime changes" {
     env_home = std.fmt.bufPrint(&home_buf, ".zig-cache/tmp/{s}", .{test_dir.sub_path[0..]}) catch unreachable;
 
     // Create a pet directory with pet.json
-    const pet_path = test_dir.sub_path ++ "/tamahermes";
-    _ = test_dir.dir.createDirectory(pet_path) catch unreachable;
-    const pet_json_path = pet_path ++ "/pet.json";
-    _ = test_dir.dir.writeFile(pet_json_path, "{\"spritesheetPath\":\"spritesheet.webp\"}") catch unreachable;
+    _ = test_dir.dir.createDirPath(std.testing.io, ".petdex/pets/tamahermes") catch unreachable;
+    const pet_json_path = ".petdex/pets/tamahermes/pet.json";
+    _ = test_dir.dir.writeFile(std.testing.io, .{ .sub_path = pet_json_path, .data = "{\"spritesheetPath\":\"spritesheet.webp\"}" }) catch unreachable;
 
     // Create a catalog entry for the pet
     const entry: CatalogEntry = .{
@@ -7332,7 +7331,7 @@ test "pet package change detection detects pet.json mtime changes" {
 
     // Wait a tiny bit and modify the pet.json
     std.time.sleep(1_000_000_000); // 1 second
-    _ = test_dir.dir.writeFile(pet_json_path, "{\"spritesheetPath\":\"spritesheet.webp\",\"updated\":true}") catch unreachable;
+    _ = test_dir.dir.writeFile(std.testing.io, .{ .sub_path = pet_json_path, .data = "{\"spritesheetPath\":\"spritesheet.webp\",\"updated\":true}" }) catch unreachable;
 
     // Second check should detect the change
     try std.testing.expect(checkPetPackageChanges(&entry));
