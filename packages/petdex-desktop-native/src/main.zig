@@ -1507,6 +1507,39 @@ fn readPetSheetBytes(entry: *const CatalogEntry, buf: []u8) ?[]const u8 {
     return null;
 }
 
+/// Check if the active pet package has changed by comparing the pet.json
+/// modification time against the last known value. Returns true if a
+/// change was detected (and the cached mtime is updated).
+fn checkPetPackageChanges(entry: *const CatalogEntry) bool {
+    const home = env_home orelse return false;
+
+    var path_buf: [512]u8 = undefined;
+    var pj_path: [512]u8 = undefined;
+    const pj_path_str = std.fmt.bufPrint(
+        &pj_path,
+        "{s}/{s}/{s}/pet.json",
+        .{ home, entry.rootSlice(), entry.slice() },
+    ) catch return false;
+
+    if (std.fs.openFileAbsolute(pj_path_str, .{})) |file| {
+        defer file.close();
+        const stat = file.stat() catch return false;
+        const current_mtime = stat.mtime;
+        if (pet_package_mtime == null) {
+            // First check, just record the mtime.
+            pet_package_mtime = current_mtime;
+            return false;
+        }
+        if (current_mtime != pet_package_mtime.?) {
+            pet_package_mtime = current_mtime;
+            return true;
+        }
+        return false;
+    } else |_| {
+        return false;
+    }
+}
+
 /// Encoded sheets are well under a megabyte; the decoded RGBA is the
 /// big side (1536x2288x4 = 13.4MB), so the decode buffer is sized for
 /// the largest sheet the platform codecs accept at our aspect.
@@ -1580,6 +1613,8 @@ var initial_update_checks: bool = true;
 var initial_last_update_check_ms: i64 = 0;
 var initial_latest_version: [32]u8 = @splat(0);
 var initial_latest_version_len: usize = 0;
+/// Persisted pet package modification time for change detection.
+var pet_package_mtime: ?u64 = null;
 /// Persisted pet window origin; null on first run (or a settings file
 /// from before positions were saved), which keeps the platform's
 /// default placement. Off-screen values from an unplugged monitor are
@@ -3297,6 +3332,17 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
         },
         .poll_tick => |timer| {
             if (timer.outcome != .fired) return;
+            // Check if the active pet package has changed and needs reload.
+            if (model.sheet_loaded and model.active_pet < catalog_mod.catalog_len) {
+                const entry = &catalog[model.active_pet];
+                if (checkPetPackageChanges(entry)) {
+                    // Reload the sheet without resetting window position/settings.
+                    if (!loadSheetForPet(fx, entry)) {
+                        // On failure, keep the last good sheet visible with a diagnostic.
+                        std.debug.print("petdex: failed to reload sheet for {s}, keeping existing sheet\n", .{entry.slice()});
+                    }
+                }
+            }
             if (hook_server.auth_mailbox.take()) |callback| {
                 if (model.auth.phase == .authorizing) {
                     if (!std.mem.eql(u8, callback.stateSlice(), model.auth.oauthState())) {
@@ -7258,4 +7304,40 @@ test "the auto-upload helpers read the shared file, default on, and write it" {
     try std.testing.expect(loadAutoUpload());
     var after: [64]u8 = undefined;
     try std.testing.expectEqualStrings("{\"autoUpload\": ", cReadFile(path, &after).?);
+}
+
+test "pet package change detection detects pet.json mtime changes" {
+    const saved_home = env_home;
+    defer env_home = saved_home;
+    var test_dir = std.testing.tmpDir(.{});
+    defer test_dir.cleanup();
+    var home_buf: [160]u8 = undefined;
+    env_home = std.fmt.bufPrint(&home_buf, ".zig-cache/tmp/{s}", .{test_dir.sub_path[0..]}) catch unreachable;
+
+    // Create a pet directory with pet.json
+    const pet_path = test_dir.sub_path ++ "/tamahermes";
+    _ = test_dir.dir.createDirectory(pet_path) catch unreachable;
+    const pet_json_path = pet_path ++ "/pet.json";
+    _ = test_dir.dir.writeFile(pet_json_path, "{\"spritesheetPath\":\"spritesheet.webp\"}") catch unreachable;
+
+    // Create a catalog entry for the pet
+    const entry: CatalogEntry = .{
+        .capable = true,
+        .name = @splat(0),
+        .len = 11,
+        .root = @splat(0),
+        .root_len = 12,
+    };
+    @memcpy(entry.name[0..11], "tamahermes");
+    @memcpy(entry.root[0..12], ".petdex/pets");
+
+    // First check should not detect a change (initial state)
+    try std.testing.expect(!checkPetPackageChanges(&entry));
+
+    // Wait a tiny bit and modify the pet.json
+    std.time.sleep(1_000_000_000); // 1 second
+    _ = test_dir.dir.writeFile(pet_json_path, "{\"spritesheetPath\":\"spritesheet.webp\",\"updated\":true}") catch unreachable;
+
+    // Second check should detect the change
+    try std.testing.expect(checkPetPackageChanges(&entry));
 }
