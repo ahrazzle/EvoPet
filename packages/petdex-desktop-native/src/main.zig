@@ -1531,7 +1531,7 @@ fn checkPetPackageChanges(entry: *const CatalogEntry) bool {
             return true;
         }
         return false;
-    } else |_| {
+    } else {
         return false;
     }
 }
