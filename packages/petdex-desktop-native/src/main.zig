@@ -7329,8 +7329,7 @@ test "pet package change detection detects pet.json mtime changes" {
     // First check should not detect a change (initial state)
     try std.testing.expect(!checkPetPackageChanges(&entry));
 
-    // Wait a tiny bit and modify the pet.json
-    std.time.sleep(1_000_000_000); // 1 second
+    // Modify the pet.json; the filesystem timestamp changes with the write.
     _ = test_dir.dir.writeFile(std.testing.io, .{ .sub_path = pet_json_path, .data = "{\"spritesheetPath\":\"spritesheet.webp\",\"updated\":true}" }) catch unreachable;
 
     // Second check should detect the change
