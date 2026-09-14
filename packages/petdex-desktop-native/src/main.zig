@@ -1520,10 +1520,7 @@ fn checkPetPackageChanges(entry: *const CatalogEntry) bool {
         .{ home, entry.rootSlice(), entry.slice() },
     ) catch return false;
 
-    if (std.fs.openFileAbsolute(pj_path_str, .{})) |file| {
-        defer file.close();
-        const stat = file.stat() catch return false;
-        const current_mtime = stat.mtime;
+    if (plat.fileMtime(pj_path_str)) |current_mtime| {
         if (pet_package_mtime == null) {
             // First check, just record the mtime.
             pet_package_mtime = current_mtime;
@@ -1613,7 +1610,7 @@ var initial_last_update_check_ms: i64 = 0;
 var initial_latest_version: [32]u8 = @splat(0);
 var initial_latest_version_len: usize = 0;
 /// Persisted pet package modification time for change detection.
-var pet_package_mtime: ?u64 = null;
+var pet_package_mtime: ?i128 = null;
 /// Persisted pet window origin; null on first run (or a settings file
 /// from before positions were saved), which keeps the platform's
 /// default placement. Off-screen values from an unplugged monitor are
