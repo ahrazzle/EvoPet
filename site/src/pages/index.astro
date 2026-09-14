@@ -77,7 +77,7 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
         <img
           src="/pet-cell-idle-4x.png"
           width="768"
-          height="832"
+          height="416"
           alt="EvoPet, drawn from its own sprite atlas: one idle cell of the pet at four times the atlas size."
           decoding="async"
         />
@@ -246,7 +246,7 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
         <div class="card">
           <h4>Step 4</h4>
           <h3>Every surface renders it</h3>
-          <p>The terminal prompt and the desktop both draw the same sheet, with the same HUD.</p>
+          <p>The terminal prompt draws the in-cell HUD; the desktop mirrors the same sheet.</p>
         </div>
       </div>
     </section>
@@ -364,6 +364,21 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
     </section>
 
     <section class="section tint--amber">
+      <h2>What you see on the desktop</h2>
+      <p class="prose">
+        The pet itself carries its progress: the growth bar and level number are drawn into the sprite.
+        Right‑click for Clean, Feed and Play. Each writes to the same ledger every agent feeds.
+      </p>
+      <div class="note note--warn">
+        <span class="note-title">Planned, not shipped yet</span>
+        <p>
+          A separate floating status panel, more care actions, and a package reload without restarting the shell are planned.
+          Do not treat them as available.
+        </p>
+      </div>
+    </section>
+
+    <section class="section tint--amber">
       <h2>Where things stand</h2>
       <p class="prose">
         Said plainly, because the rest of this site is documentation and documentation should not
@@ -372,8 +387,8 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
       <ul class="prose">
         <li>The pet's mechanics, the combined ledger and the drain that fills it are in the pet tree.</li>
         <li>
-          The desktop shell runs as a local build on macOS. A notarized download does not exist
-          yet, so there is nothing to install on a machine that did not build it.
+          The desktop shell ships as a local build on macOS. The in‑cell HUD (growth bar and level
+          in the sprite) is the shipped surface. A separate floating status panel is planned.
         </li>
         <li>
           The library service is written and passes its own end-to-end round trip, but it is not
