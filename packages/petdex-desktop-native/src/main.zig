@@ -1520,17 +1520,23 @@ fn checkPetPackageChanges(entry: *const CatalogEntry) bool {
         .{ home, entry.rootSlice(), entry.slice() },
     ) catch return false;
 
+    // Read actual file content to hash (not just the path)
+    const content = plat.readFileAlloc(boot_allocator, pj_path_str, 1024 * 1024) orelse {
+        return false;
+    };
+    defer boot_allocator.free(content);
+
     if (plat.fileMtime(pj_path_str)) |current_mtime| {
         if (pet_package_mtime == null) {
-            // First check, just record the mtime and hash.
+            // First check, just record the mtime and content hash.
             pet_package_mtime = current_mtime;
-            pet_package_hash = std.hash_map.hashString(pj_path_str);
+            pet_package_hash = std.hash_map.hashString(content);
             return false;
         }
         const has_hash = pet_package_hash != null;
-        if (current_mtime != pet_package_mtime.? or !has_hash or (pet_package_hash.? != std.hash_map.hashString(pj_path_str))) {
+        if (current_mtime != pet_package_mtime.? or !has_hash or (pet_package_hash.? != std.hash_map.hashString(content))) {
             pet_package_mtime = current_mtime;
-            pet_package_hash = std.hash_map.hashString(pj_path_str);
+            pet_package_hash = std.hash_map.hashString(content);
             return true;
         }
         return false;
