@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DESKTOP_DIR="$ROOT/packages/petdex-desktop-native"
 EXECUTABLE="$DESKTOP_DIR/zig-out/bin/petdex-desktop-native"
-APP_PATH="${PETDEX_DEV_APP_PATH:-$HOME/Applications/Petdex Dev.app}"
+APP_PATH="${PETDEX_DEV_APP_PATH:-$HOME/Applications/EvoPet Dev.app}"
 APP_EXECUTABLE="$APP_PATH/Contents/MacOS/PetdexDev"
 NATIVE_CLI="${NATIVE_CLI:-$(command -v native || true)}"
 NATIVE_SDK_PATH="${NATIVE_SDK_PATH:-}"

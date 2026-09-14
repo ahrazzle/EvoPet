@@ -63,13 +63,13 @@ const trackerOwners: [string, string, string, string][] = [
     <ol>
       <li>An agent does something; Hermes fires a hook event (<code>prompt_sent</code>, <code>task_success</code>, …).</li>
       <li>The event is applied to that profile's ledger as XP plus stat changes, at the turn boundary.</li>
-      <li>The compiler redraws the pet's atlas and installs it. Rebuilds are coalesced, so a burst of tool calls is one redraw.</li>
+      <li>The compiler redraws the pet's atlas and installs it; rebuilds are coalesced, so a burst of tool calls is one redraw.</li>
       <li>Every surface renders that one sheet: the terminal pet and the desktop mirror.</li>
     </ol>
     <p>
-      XP is awarded <strong>at turn boundaries, never per tool call</strong>. A turn in Codex has
-      to be worth a turn in Hermes; per-tool accounting would inflate the pet twenty to forty times
-      over against the ladder.
+      XP is awarded <strong>at turn boundaries, never per tool call</strong>. A turn in Codex must
+      be worth a turn in Hermes; per-tool accounting would inflate the pet twenty to forty times
+      against the ladder.
     </p>
   </section>
 
@@ -118,7 +118,7 @@ const trackerOwners: [string, string, string, string][] = [
     <h3>The ladder</h3>
     <p>
       Every pet in every package climbs the same ladder, so a level means the same amount of work
-      in every pet. It is fixed by EvoPet, cheap at the start and long at the end:
+      everywhere. Fixed by EvoPet, cheap at the start and long at the end:
     </p>
     <p>
       <code>xp_for_level(L) = round(100_000 × ((L − 1) ÷ {MAX_LEVEL - 1})²)</code>,
@@ -156,11 +156,10 @@ const trackerOwners: [string, string, string, string][] = [
     </p>
     <p>
       <strong>The bar fills against the level, not the form.</strong> <code>level_progress(xp)</code>{' '}
-      reports the level and the position between its floor (<code>xp_for_level(L)</code>) and its
-      ceiling (<code>xp_for_level(L + 1)</code>), so the bar fills about a hundred times in a pet's
-      life and resets at every level-up — but the sprite changes only when a gate is crossed,
-      because a gate is the only thing that changes the form. At level 99 the ceiling is{' '}
-      <code>None</code>, the bar reports 100%, and the drawn value snaps to 5% buckets.
+      reports the level and where it sits between its floor (<code>xp_for_level(L)</code>) and
+      ceiling (<code>xp_for_level(L + 1)</code>), so the bar resets at every level-up while the
+      sprite changes only at a gate. At level 99 the ceiling is <code>None</code>, the bar reports
+      100%, and the drawn value snaps to 5% buckets.
     </p>
   </section>
 
@@ -215,17 +214,15 @@ const trackerOwners: [string, string, string, string][] = [
         <code>pet.json</code> carries the ledger's gates.
       </li>
       <li>
-        The change takes effect on the <strong>next install</strong>, not on the next event. Nothing
-        re-reads a manifest mid-run, and it is the ledger's own gate list —{' '}
-        <code>state.evolution_gates(state)</code> — that <code>maybe_evolve</code> and{' '}
-        <code>stage_progress</code> read.
+        The change takes effect on the <strong>next install</strong>, not the next event. Nothing
+        re-reads a manifest mid-run; <code>maybe_evolve</code> and <code>stage_progress</code> read
+        the ledger's own gate list, <code>state.evolution_gates(state)</code>.
       </li>
     </ol>
     <p>A manifest that declares nothing leaves the ledger alone: silence is not a declaration.</p>
     <h4>What a bad gate list is told</h4>
     <p>
-      <code>levels.validate_gates</code> refuses, and names the problem. These are its messages,
-      verbatim:
+      <code>levels.validate_gates</code> refuses, and names the problem. Its messages, verbatim:
     </p>
     <ul class="prose">
       {refusals.map((message) => <li><code>{message}</code></li>)}
@@ -233,13 +230,12 @@ const trackerOwners: [string, string, string, string][] = [
     <p>
       A block that is present but invalid is refused at install, and <code>PetCompileError</code>{' '}
       names the file: <code>{refusalSnippet}</code>. A ledger with no{' '}
-      <code>evolutionGates</code> key at all behaves exactly as it always has, on the default pet's
-      gates — a growth event that raised would strand a user mid-run.
+      <code>evolutionGates</code> key behaves exactly as it always has, on the default pet's gates.
     </p>
     <p>
-      Two properties make a reached gate safe to rely on. The gate level becomes a floor in the
-      ledger's threshold table, and XP only rises, so a pet cannot regress out of a form. And the
-      terminal form is absent from that table, so the last form has nothing to grow into.
+      A reached gate becomes a floor in the ledger's threshold table, and XP only rises, so a pet
+      cannot regress out of a form; the terminal form is absent, so the last form has nothing to
+      grow into.
     </p>
   </section>
 
@@ -267,8 +263,8 @@ const trackerOwners: [string, string, string, string][] = [
       </li>
     </ul>
     <p>
-      Branches are sticky: once chosen they persist, and they are restored after dormancy. A branch
-      is a record of how you worked, not a choice you make. Form ids read{' '}
+      Branches are sticky: once chosen they persist and are restored after dormancy. A branch
+      records how you worked rather than being a choice you make. Form ids read{' '}
       <code>&lt;line&gt;:&lt;branch&gt;</code>, for example <code>child:root</code> or{' '}
       <code>teen:focused</code>.
     </p>
@@ -320,9 +316,9 @@ const trackerOwners: [string, string, string, string][] = [
       </table>
     </div>
     <p>
-      While asleep the pet draws flat sleeping artwork — a 24×11 source union against roughly 23×24
-      for every other form, so it <em>looks</em> vertically compressed and is not — and its bar
-      shows real progress toward the form it will wake into rather than a pinned zero.
+      While asleep the pet draws flat sleeping artwork: a 24×11 source union against roughly 23×24
+      for every other form, so it <em>looks</em> vertically compressed and is not. Its bar still
+      shows real progress toward the form it will wake into.
     </p>
   </section>
 
@@ -353,19 +349,15 @@ const trackerOwners: [string, string, string, string][] = [
       </table>
     </div>
     <p>
-      Also tracked but never shown: <code>mood</code> (which affects nothing) and the traits{' '}
-      <code>focus</code>, <code>resilience</code> and <code>restlessness</code>, which decide the
-      branch.
+      Also tracked but never shown: the traits <code>focus</code>, <code>resilience</code> and{' '}
+      <code>restlessness</code>, which decide the branch.
     </p>
     <h4>What the shipped status strip draws</h4>
     <p>
-      The top row is silent unless something needs you. Energy is the one escalation: at{' '}
-      <span class="num">45</span> or below the bolt and its gauge appear, amber while energy is low
-      and red once it is critical (<span class="num">20</span> or below). The alert glyph still
-      shows a failure or a review, and the health warning shows while health is{' '}
-      <span class="num">35</span> or below. The bottom row is always drawn: satiety as the bowl,
-      growth as the centre bar, bond as the heart — which stays hidden until the pet is past "new".
-      A direction decision for a richer HUD is still open and is not shown here.
+      The top row stays silent unless something needs you: energy draws the bolt and its gauge at the
+      bins above, a health warning appears while health is weak, and the alert glyph shows a failure
+      or a review. The bottom row is always drawn &mdash; satiety as the bowl, growth as the centre
+      bar, bond as the heart, hidden until the pet is past "new".
     </p>
   </section>
 
@@ -387,17 +379,16 @@ const trackerOwners: [string, string, string, string][] = [
               <strong>Mess can never fall.</strong> <code>failedRuns</code> and{' '}
               <code>careMistakes</code> are never decremented, and <code>task_failure</code>{' '}
               increments both, so <code>mess_score</code> gains <span class="num">+10</span> per
-              failure monotonically and clamps at <span class="num">100</span>. Any used profile
-              reads "messy" forever, which means a cleanliness gauge cannot work until failures
-              decay.
+              failure and clamps at <span class="num">100</span>. Any used profile reads "messy"
+              forever: a cleanliness gauge cannot work until failures decay.
             </td>
           </tr>
           <tr>
             <th scope="row" class="num">D2</th>
             <td>
-              <strong><code>careMistakes</code> is mis-modelled.</strong> It is meant to say "the
-              owner neglected care", but it is incremented by agent turn failures — double-counting
-              every failure in the mess score.
+              <strong><code>careMistakes</code> is mis-modelled.</strong> Meant to say "the owner
+              neglected care", it is incremented by agent turn failures, double-counting every
+              failure in the mess score.
             </td>
           </tr>
           <tr>
@@ -433,14 +424,13 @@ const trackerOwners: [string, string, string, string][] = [
       </table>
     </div>
     <p>
-      Three further gaps are documented rather than fixed, and they matter if you are about to rely
-      on them:
+      Three further gaps are documented rather than fixed:
     </p>
     <ul class="prose">
       <li>
-        Nothing cross-checks your gates against your spritesheet when you declare them.{' '}
-        <code>validate_gates</code> checks the list's shape only, so a line that lacks a form for a
-        stage your gates imply fails later, in the catalogue lookup, when the pet grows into it —{' '}
+        Nothing cross-checks your gates against your spritesheet at declaration.{' '}
+        <code>validate_gates</code> checks the list's shape only, so a line that lacks a form your
+        gates imply fails later, in the catalogue lookup:{' '}
         <code>CatalogError: no form for line …</code>.
       </li>
       <li>
@@ -453,20 +443,18 @@ const trackerOwners: [string, string, string, string][] = [
     </ul>
     <div class="note note--warn">
       <span class="note-title">Two notes in the project disagree about the numbers</span>
-      <p>
-        <code>levels-and-evolution.md</code> — the pet's own contract — describes the 99-level
-        ladder with gates at <span class="num">11/23/32/45</span>. An older mechanics write-up
-        describes stage thresholds of <span class="num">120/320/900/1800</span> and a level of{' '}
+    <p>
+        <code>levels-and-evolution.md</code>, the pet's own contract, describes the 99-level ladder
+        with gates at <span class="num">11/23/32/45</span>. An older mechanics write-up describes
+        stage thresholds of <span class="num">120/320/900/1800</span> and a level of{' '}
         <code>1 + xp // 25</code>. Both cannot be true. This site publishes the gates model, which
-        the shipped <code>levels.py</code> implements, and treats the older write-up as stale; that
-        conflict is flagged rather than hidden, and regenerating the stale note is open work.
+        the shipped <code>levels.py</code> implements, and treats the older write-up as stale;
+        regenerating it is open work.
       </p>
     </div>
   </section>
 
   <p class="sources">
-    <strong>Source.</strong> {group.source}. Sleep and wake thresholds, the tracker formulas and
-    the bins were read out of <code>tamahermes/state.py</code> and{' '}
-    <code>tamahermes/visual_state.py</code>; the defects are the project's own recorded list.
+    <strong>Source.</strong> {group.source}. The defects are the project's own recorded list.
   </p>
 </section>

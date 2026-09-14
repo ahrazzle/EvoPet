@@ -118,11 +118,11 @@ progress may be lost in the switch.
 ## Status
 
 - **Running now**: our patched app installed as a parallel bundle at
-  `~/Applications/Petdex-dev.app` (adhoc-signed), stock `/Applications/Petdex.app`
+  `~/Applications/EvoPet.app` (adhoc-signed), stock `/Applications/Petdex.app`
   untouched. Its boot re-points `~/.petdex/bin/petdex-hook` at itself, so every agent's
   hooks now route through the tap. Verified in the real home: hermes, claude-code and
   codex events all captured with `agent_source`, `session_id`, `source_cwd` and
-  `agent_state` intact. Revert: `pkill -f Petdex-dev && open -a /Applications/Petdex.app`.
+  `agent_state` intact. Revert: `pkill -f petdex-desktop-native && open -a /Applications/Petdex.app`.
 - The bundle identity is deliberately unchanged: `app.zon`'s id is the keychain service
   at runtime, so renaming it would sign the build out and break `petdex://` parity.
 

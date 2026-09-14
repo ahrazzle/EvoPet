@@ -59,11 +59,10 @@ const deleteCurl = `curl -X DELETE "https://<host>/api/pets/<slug>?reason=<compl
   <div class="note note--honest">
     <span class="note-title">Not deployed</span>
     <p>
-      The library service is written, and passes its own end-to-end round trip. It is not deployed:
-      the base URL the site calls is a placeholder until someone chooses the host, which also has to
-      be chosen <em>before</em> the first publish because every URL in the index is absolute and
-      issued from that value. Until then the library page says it cannot reach the library, which is
-      the honest answer rather than an empty shelf.
+      The library service is written and passes its own end-to-end round trip, but it is not
+      deployed. The base URL the site calls is a placeholder until a host is chosen, which must
+      happen <em>before</em> the first publish: every URL in the index is absolute and issued from
+      that value. Until then the library page reports that it cannot reach the library.
     </p>
   </div>
 
@@ -72,10 +71,10 @@ const deleteCurl = `curl -X DELETE "https://<host>/api/pets/<slug>?reason=<compl
     <p>
       One service, no database, no auth provider: Node and TypeScript, deployed as a single function,
       with one runtime dependency (the platform's own blob client). Public and owner-only bytes are
-      separated deliberately — an <code>approved</code> pet's files are served to anyone, while a{' '}
-      <code>pending</code> or <code>rejected</code> one's are served only to its owner or an
-      operator, and an unauthorised request gets <code>404</code> rather than <code>403</code> so a
-      slug cannot be used to probe for hidden pets.
+      separated deliberately: an <code>approved</code> pet's files go to anyone, a{' '}
+      <code>pending</code> or <code>rejected</code> one's only to its owner or an operator, and an
+      unauthorised request gets <code>404</code> rather than <code>403</code> so a slug cannot probe
+      for hidden pets.
     </p>
     <div class="table-scroll">
       <table>
@@ -114,19 +113,17 @@ const deleteCurl = `curl -X DELETE "https://<host>/api/pets/<slug>?reason=<compl
   <section class="docs-section" id="capability">
     <h3>Capability</h3>
     <p>
-      <strong>Evolution capability is the <code>evopet</code> block, and nothing else.</strong> If a{' '}
-      <code>pet.json</code> carries an object-valued <code>evopet</code> key the pet is capable and
-      the parsed block is stored with the record and served in the index; otherwise it is a stock
-      package and <code>evopet</code> is <code>null</code>. That is the desktop app's own marker, so
-      the service refuses <code>"evopet": "yes"</code> rather than storing something the app would
-      call incapable, and it asserts that its own flag agrees with the app's scanner before storing.
+      <strong>Evolution capability is the <code>evopet</code> block, and nothing else.</strong> An
+      object-valued <code>evopet</code> key makes the pet capable: the parsed block is stored with
+      the record and served in the index. Otherwise the package is stock and <code>evopet</code> is
+      <code>null</code>. The service refuses <code>"evopet": "yes"</code> and checks its own flag
+      against the app's scanner before storing.
     </p>
     <p>
       Declared <code>evolutionGates</code> are validated like <code>levels.validate_gates</code>:{' '}
       <span class="num">1</span>–<span class="num">4</span> gates, levels 1 to 99, strictly
-      increasing. The index serves both the boolean and the block on purpose — the block is the whole
-      truth, and the boolean is the convenience — so a client never has to re-derive the answer and
-      never has to trust one that cannot be checked.
+      increasing. The index serves both the boolean and the block on purpose: the block is the whole
+      truth, the boolean the convenience, so a client can always check the answer.
     </p>
   </section>
 
@@ -163,7 +160,7 @@ const deleteCurl = `curl -X DELETE "https://<host>/api/pets/<slug>?reason=<compl
     <p>
       Validation happens before anything is stored: the manifest must parse, <code>id</code> must be
       a legal slug (<code>[a-z0-9-]</code>, <span class="num">1</span>–<span class="num">64</span>{' '}
-      bytes, no leading or trailing dash — it becomes a directory name under{' '}
+      bytes, no leading or trailing dash; it becomes a directory name under{' '}
       <code>~/.petdex/pets</code>), <code>displayName</code> must fit{' '}
       <span class="num">96</span> bytes, the sheet must be the documented atlas of the documented
       kind, and <code>spritesheetPath</code> must agree with the uploaded sheet.
@@ -178,24 +175,22 @@ const deleteCurl = `curl -X DELETE "https://<host>/api/pets/<slug>?reason=<compl
       One bearer key per user, minted by the operator CLI and stored hashed with scrypt. The secret
       is never written, never logged, and never returned again. Format{' '}
       <code>evk1.&lt;id&gt;.&lt;secret&gt;</code>: the id is the public lookup path, the secret is 32
-      random bytes. Issuing is a CLI rather than an HTTP endpoint on purpose — the first operator key
-      would otherwise need a bootstrap secret in the environment that mints credentials, which is
-      worse to hold than the storage token the CLI already needs.
+      random bytes.
     </p>
     <pre><code>{issueKey}</code></pre>
     <p>Publishing with a key:</p>
     <pre><code>{publishCurl}</code></pre>
     <div class="note note--warn">
       <span class="note-title">The one thing that must not go wrong</span>
-      <p>
+    <p>
         The desktop app stores its session in the login keychain as a JSON blob, and{' '}
         <strong><code>refresh_token</code> must be empty</strong>. On a 401 the app posts a
-        non-empty <code>refresh_token</code> to a third party's token endpoint — so a library key
-        sitting in the refresh slot is a credential leak to a service that has nothing to do with
-        this library. Write the blob, which is what <code>key:issue</code> prints:
+        non-empty <code>refresh_token</code> to a third party's token endpoint, so a library key in
+        the refresh slot leaks a credential. Write the blob, which is what <code>key:issue</code>{' '}
+        prints:
       </p>
       <pre><code>{keychainBlob}</code></pre>
-      <p>
+    <p>
         With <code>refresh_token</code> empty, a 401 surfaces as a sync error and nothing leaves the
         machine.
       </p>
@@ -206,10 +201,9 @@ const deleteCurl = `curl -X DELETE "https://<host>/api/pets/<slug>?reason=<compl
     <h3>Publication policy</h3>
     <p>
       Publishing is auto-upload: with no flag a package appears in the index immediately with the
-      status the app already understands for a listed pet, <code>approved</code>. The off switch is{' '}
-      <code>public=false</code>, which is the only thing that produces <code>pending</code> — and it
-      is the only setting in this whole system that persists a choice, written to{' '}
-      <code>~/.evopet/settings.json</code>.
+      status the app already understands for a listed pet, <code>approved</code>. The off switch,{' '}
+      <code>public=false</code>, is the only thing that produces <code>pending</code>, and the only
+      setting in the system that persists a choice: <code>~/.evopet/settings.json</code>.
     </p>
     <div class="table-scroll">
       <table>
@@ -227,10 +221,8 @@ const deleteCurl = `curl -X DELETE "https://<host>/api/pets/<slug>?reason=<compl
       </table>
     </div>
     <p>
-      <code>pending</code> and <code>rejected</code> exist because the app already has both statuses,
-      because the off switch has to leave an unlisted package somewhere honest, and because a
-      maintainer needs to suppress a pet without destroying it. Nothing in the default path produces
-      them, and the rejection path is a status change, not a queue.
+      Both statuses already exist in the app, and the off switch needs somewhere honest to leave an
+      unlisted package. The default path produces neither; rejection is a status change, not a queue.
     </p>
     <div class="table-scroll">
       <table>
@@ -255,32 +247,29 @@ const deleteCurl = `curl -X DELETE "https://<host>/api/pets/<slug>?reason=<compl
       </table>
     </div>
     <p>
-      The catalogue is stored <strong>one object per pet</strong>, not one catalogue document. A
-      single document would be a read-modify-write with no compare-and-swap behind it, so two
-      concurrent publishes would silently lose one of the two pets — exactly while the library is
-      growing. Per-pet keys make a publish a single write to a key nobody else is writing; the price
-      is that listing is a list plus N reads, which is fine at this scale and honest about it.
+      The catalogue is stored <strong>one object per pet</strong>, not one document. A single
+      document would be a read-modify-write with no compare-and-swap behind it, so concurrent
+      publishes could silently lose a pet. Per-pet keys make a publish one write to a key nobody else
+      is writing; listing is then a list plus N reads.
     </p>
   </section>
 
   <section class="docs-section" id="deletion">
     <h3>Deletion and takedown</h3>
     <p>
-      <code>DELETE /api/pets/&lt;slug&gt;</code> removes the index record and every package object.
-      No tombstone serves anything afterwards, and the slug becomes a <code>404</code>. An owner can
-      delete their own pet; an operator key can delete <strong>any</strong> pet, optionally with a
-      reason, and that reason is kept for maintainer deletions only, in an operator-readable audit
-      entry.
+      <code>DELETE /api/pets/&lt;slug&gt;</code> removes the index record and every package object;
+      no tombstone serves anything afterwards, and the slug becomes a <code>404</code>. An owner can
+      delete their own pet, and an operator key can delete <strong>any</strong> pet, optionally with
+      a reason kept in the audit log.
     </p>
     <pre><code>{deleteCurl}</code></pre>
     <div class="note note--warn">
       <span class="note-title">No monitored takedown address exists yet</span>
-      <p>
+    <p>
         A third-party complaint needs an address a rights holder can write to, and there is not one:
-        the interim posture is that removal is a manual operator action. Any hosted public use should
-        add a monitored address, a response-time commitment, and a repeat-infringer rule for
-        publishing keys. This site states that plainly rather than implying a process that does not
-        exist, and makes no claim about how fast a takedown would be answered.
+        removal is a manual operator action. Hosted public use should add a monitored address, a
+        response-time commitment, and a repeat-infringer rule for publishing keys; this site makes no
+        claim about how fast a takedown would be answered.
       </p>
     </div>
   </section>
@@ -290,17 +279,17 @@ const deleteCurl = `curl -X DELETE "https://<host>/api/pets/<slug>?reason=<compl
     <ul class="prose">
       <li>
         <strong>No authenticated flow of any kind.</strong> No accounts, no OAuth, no keys, no
-        uploads. The library page reads one public endpoint and nothing else.
+        uploads; the library page reads one public endpoint.
       </li>
       <li>
         <strong>No hosted claim.</strong> The service's deploy steps live in its own repository; this
-        site neither performs nor asserts a deployment, and it does not choose the public base URL.
+        site neither performs nor asserts a deployment, and does not choose the public base URL.
       </li>
       <li>
         <strong>No install path that does not exist.</strong> The app reads its catalogue manifest
         from a compiled constant and trusts asset URLs under its own host, so{' '}
-        <code>petdex://&lt;slug&gt;</code> installs still resolve to petdex.dev. Only the library URL
-        is overridable. A link here would imply otherwise.
+        <code>petdex://&lt;slug&gt;</code> installs still resolve to petdex.dev; only the library URL
+        is overridable.
       </li>
     </ul>
   </section>
