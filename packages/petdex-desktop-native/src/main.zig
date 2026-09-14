@@ -1508,8 +1508,8 @@ fn readPetSheetBytes(entry: *const CatalogEntry, buf: []u8) ?[]const u8 {
 }
 
 /// Check if the active pet package has changed by comparing the pet.json
-/// modification time against the last known value. Returns true if a
-/// change was detected (and the cached mtime is updated).
+/// modification time and content hash against the last known values. Returns
+/// true if a change was detected (and the cached values are updated).
 fn checkPetPackageChanges(entry: *const CatalogEntry) bool {
     const home = env_home orelse return false;
 
@@ -1522,12 +1522,16 @@ fn checkPetPackageChanges(entry: *const CatalogEntry) bool {
 
     if (plat.fileMtime(pj_path_str)) |current_mtime| {
         if (pet_package_mtime == null) {
-            // First check, just record the mtime.
+            // First check, just record the mtime and hash.
             pet_package_mtime = current_mtime;
+            pet_package_hash = std.hash_map.w
+64(pj_path_str);
             return false;
         }
-        if (current_mtime != pet_package_mtime.?) {
+        const has_hash = pet_package_hash != null;
+        if (current_mtime != pet_package_mtime.? or !has_hash or (pet_package_hash.? != std.hash_map.w64(pj_path_str))) {
             pet_package_mtime = current_mtime;
+            pet_package_hash = std.hash_map.w64(pj_path_str);
             return true;
         }
         return false;
@@ -1611,6 +1615,8 @@ var initial_latest_version: [32]u8 = @splat(0);
 var initial_latest_version_len: usize = 0;
 /// Persisted pet package modification time for change detection.
 var pet_package_mtime: ?i96 = null;
+/// Persisted pet package content hash for detecting same-mtime changes.
+var pet_package_hash: ?u64 = null;
 /// Persisted pet window origin; null on first run (or a settings file
 /// from before positions were saved), which keeps the platform's
 /// default placement. Off-screen values from an unplugged monitor are
