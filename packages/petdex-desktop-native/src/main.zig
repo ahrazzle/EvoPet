@@ -1610,7 +1610,7 @@ var initial_last_update_check_ms: i64 = 0;
 var initial_latest_version: [32]u8 = @splat(0);
 var initial_latest_version_len: usize = 0;
 /// Persisted pet package modification time for change detection.
-var pet_package_mtime: ?i128 = null;
+var pet_package_mtime: ?i96 = null;
 /// Persisted pet window origin; null on first run (or a settings file
 /// from before positions were saved), which keeps the platform's
 /// default placement. Off-screen values from an unplugged monitor are

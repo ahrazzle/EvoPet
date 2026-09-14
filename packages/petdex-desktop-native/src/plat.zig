@@ -69,13 +69,13 @@ pub fn readFileIo(io: std.Io, path: []const u8, buf: []u8) ?[]const u8 {
     return buf[0..total];
 }
 
-pub fn fileMtime(path: []const u8) ?i128 {
+pub fn fileMtime(path: []const u8) ?i96 {
     var scope = Scope.init();
     defer scope.deinit();
     var file = std.Io.Dir.cwd().openFile(scope.io(), path, .{}) catch return null;
     defer file.close(scope.io());
     const stat = file.stat(scope.io()) catch return null;
-    return stat.mtime;
+    return stat.mtime.nanoseconds;
 }
 
 /// Last `buf.len` bytes of a file. Used for transcript tails, where
