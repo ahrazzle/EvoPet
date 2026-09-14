@@ -1524,13 +1524,13 @@ fn checkPetPackageChanges(entry: *const CatalogEntry) bool {
         if (pet_package_mtime == null) {
             // First check, just record the mtime and hash.
             pet_package_mtime = current_mtime;
-            pet_package_hash = std.hash_map.w64(pj_path_str);
+            pet_package_hash = std.hash_map.hashString(pj_path_str);
             return false;
         }
         const has_hash = pet_package_hash != null;
-        if (current_mtime != pet_package_mtime.? or !has_hash or (pet_package_hash.? != std.hash_map.w64(pj_path_str))) {
+        if (current_mtime != pet_package_mtime.? or !has_hash or (pet_package_hash.? != std.hash_map.hashString(pj_path_str))) {
             pet_package_mtime = current_mtime;
-            pet_package_hash = std.hash_map.w64(pj_path_str);
+            pet_package_hash = std.hash_map.hashString(pj_path_str);
             return true;
         }
         return false;
