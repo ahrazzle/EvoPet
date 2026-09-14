@@ -7319,11 +7319,11 @@ test "pet package change detection detects pet.json mtime changes" {
     var entry: CatalogEntry = .{
         .capable = true,
         .name = @splat(0),
-        .len = 11,
+        .len = 10,
         .root = @splat(0),
         .root_len = 12,
     };
-    @memcpy(entry.name[0..11], "tamahermes");
+    @memcpy(entry.name[0..10], "tamahermes");
     @memcpy(entry.root[0..12], ".petdex/pets");
 
     // First check should not detect a change (initial state)
