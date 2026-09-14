@@ -12,7 +12,7 @@
 set -euo pipefail
 WORK=/Users/kethuda/EvoPet/.build
 REPO=/Users/kethuda/EvoPet
-APP="$HOME/Applications/Petdex-dev.app"
+APP="$HOME/Applications/EvoPet.app"
 export PATH="$WORK/zig:$PATH"
 export NATIVE_SDK_PATH="$WORK/native-sdk"
 NATIVE_CLI="$NATIVE_SDK_PATH/zig-out/bin/native"
@@ -41,4 +41,4 @@ echo
 echo "installed: $APP"
 echo "symlink  : $(readlink ~/.petdex/bin/petdex-hook)"
 echo
-echo "to revert: pkill -f Petdex-dev && open -a /Applications/Petdex.app"
+# to revert: pkill -f petdex-desktop-native && open -a /Applications/Petdex.app

@@ -50,23 +50,23 @@ function groupLinks(index: number) {
 
 <DocsLayout
   title="Docs"
-  description="EvoPet documentation: install, the mechanics contract, the evolution gates, the library service and the publishing rules, with the known limitations stated as defects rather than hidden."
+  description="EvoPet documentation: install, the mechanics contract, the evolution gates, the library service and the publishing rules, with the known limitations stated as defects."
   kicker="Reference"
   groups={sidebar}
   currentId="getting-started"
-  lede="Everything EvoPet fixes, everything a pet creator chooses, and the parts that are still being built. Where a number appears here it was computed from the code that produces it, and where something does not work it is listed as a defect."
+  lede="Everything EvoPet fixes, everything a pet creator chooses, and the parts still being built. Every number here is computed from the code that produces it, and everything that does not work is listed as a defect."
 >
   <section class="docs-section" id="quick-start">
     <h2>Quick start</h2>
     <p>
       The short version, for a machine that already runs a
       <a href="https://github.com/NousResearch/hermes-agent" data-external rel="noopener noreferrer">Hermes</a>
-      agent. It installs the pet for one profile and selects it.
+      agent: it installs the pet for one profile and selects it.
     </p>
     <CopyCommand id="docs-quick-start" code={quickStart} label="Copy the quick start" />
     <p>
       <code>hermes pets doctor</code> should report the pet ready. The long version — every profile
-      at once, the installer flags, and floating the pet on the desktop — is in{' '}
+      at once, the installer flags, floating the pet on the desktop — is in{' '}
       <a href="#getting-started">Getting started</a> below.
     </p>
   </section>
@@ -98,14 +98,11 @@ function groupLinks(index: number) {
   <section class="docs-section" id="about-this-documentation">
     <h2>A note on this documentation</h2>
     <p>
-      Some of the project's own notes have fallen behind the code, which is normal and not worth
-      hiding. The mechanics write-up still describes an older ladder and an older notion of when a
-      pet evolves; where a note and the source disagree, the source wins, and{' '}
-      <a href="#limitations">Known limitations</a> names the specific differences.
+      Some of the project's own notes have fallen behind the code. The mechanics write-up still
+      describes an older ladder and an older notion of when a pet evolves; where a note and the
+      source disagree, the source wins, and <a href="#limitations">Known limitations</a> names the
+      differences.
     </p>
-    <p>
-      There is no documentation search at v1, deliberately: the site is four routes with anchors
-      inside them, and a search box over this much text would be decoration rather than a tool.
-    </p>
+
   </section>
 </DocsLayout>

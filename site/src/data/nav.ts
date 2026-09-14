@@ -153,7 +153,7 @@ export const GUIDES: GuideRef[] = [
   {
     id: 'choose-your-evolution-gates',
     title: 'Choose your evolution gates',
-    blurb: 'Pick the levels your pet changes form at, and predict what that costs in turns.',
+    blurb: 'Pick the levels your pet changes form at, and what that costs in turns.',
     source: 'docs/evopet/levels-and-evolution.md, tamahermes/levels.py',
   },
   {
