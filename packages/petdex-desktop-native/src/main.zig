@@ -7316,7 +7316,7 @@ test "pet package change detection detects pet.json mtime changes" {
     _ = test_dir.dir.writeFile(std.testing.io, .{ .sub_path = pet_json_path, .data = "{\"spritesheetPath\":\"spritesheet.webp\"}" }) catch unreachable;
 
     // Create a catalog entry for the pet
-    const entry: CatalogEntry = .{
+    var entry: CatalogEntry = .{
         .capable = true,
         .name = @splat(0),
         .len = 11,
