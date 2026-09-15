@@ -1107,14 +1107,6 @@ jobs:
           first=$(verdict before.png after1.png)
           echo "pat: $first"
 
-          if [ "${{ matrix.platform }}" = windows ]; then
-            "${bin}" capture control-before.png --json
-            sleep 1
-            "${bin}" capture control-after.png --json
-            control=$(verdict control-before.png control-after.png)
-            echo "control no-click: $control"
-          fi
-
           case "$first" in
             CHANGED*) ;;
             *) echo "FAIL: the pet did not react to a click (see #703)"
