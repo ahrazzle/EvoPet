@@ -190,6 +190,72 @@ class HermesWatcherTests(unittest.TestCase):
             )
             self.assertEqual("completed", terminals["ended-key"]["status"])
 
+    def test_persisted_sweep_matches_key_and_keyless_source_id(self) -> None:
+        watcher = load("petdex_hermes_sweep_test", "petdex-hermes-watch.py")
+        terminals = {
+            "ended-key": {
+                "session_id": "ended-key",
+                "source_session_id": "ended",
+                "text": "Done.",
+                "busy": False,
+                "status": "completed",
+            },
+            "bg_135346_d25491": {
+                "session_id": "bg_135346_d25491",
+                "source_session_id": "bg_135346_d25491",
+                "text": "Done.",
+                "busy": False,
+                "status": "completed",
+            },
+        }
+        # Keyed card closes by conversation key.
+        found = watcher.terminal_for_persisted_card("ended-key", terminals)
+        self.assertIsNotNone(found)
+        assert found is not None
+        self.assertFalse(found["busy"])
+        self.assertEqual("Done.", found["text"])
+        # Keyless Hermes session: card filed under the row id closes via
+        # the source id even though no conversation key equals it.
+        keyless = dict(terminals)
+        del keyless["bg_135346_d25491"]
+        keyless["hashed-fallback"] = {
+            **terminals["bg_135346_d25491"],
+            "session_id": "hashed-fallback",
+        }
+        found_keyless = watcher.terminal_for_persisted_card(
+            "bg_135346_d25491", keyless
+        )
+        self.assertIsNotNone(found_keyless)
+        assert found_keyless is not None
+        self.assertEqual("completed", found_keyless["status"])
+        # Another agent's card (or an aged-out row) is never closed.
+        self.assertIsNone(
+            watcher.terminal_for_persisted_card("codex-session", terminals)
+        )
+
+    def test_persisted_card_stems_lists_only_session_files(self) -> None:
+        watcher = load("petdex_hermes_stems_test", "petdex-hermes-watch.py")
+        with tempfile.TemporaryDirectory() as directory:
+            sessions = Path(directory) / "sessions"
+            sessions.mkdir()
+            (sessions / "bg_135346_d25491.json").write_text(
+                '{"title":"again. this time only return", "at": 1789417629}',
+                encoding="utf-8",
+            )
+            (sessions / "ended-key.json").write_text(
+                '{"title":"Done", "at": 1789417600}', encoding="utf-8"
+            )
+            (sessions / "notes.txt").write_text("not a card", encoding="utf-8")
+            previous = watcher.SESSIONS_DIR
+            setattr(watcher, "SESSIONS_DIR", sessions)
+            try:
+                self.assertEqual(
+                    {"bg_135346_d25491", "ended-key"},
+                    watcher.persisted_card_stems(),
+                )
+            finally:
+                setattr(watcher, "SESSIONS_DIR", previous)
+
 
 class WatcherOwnershipTests(unittest.TestCase):
     def test_pid_cleanup_never_removes_another_process(self) -> None:

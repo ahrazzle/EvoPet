@@ -2301,6 +2301,12 @@ fn startRemotes(model: *Model, fx: *Effects) void {
 }
 
 pub fn boot(model: *Model, fx: *Effects) void {
+    // Capture the parent before anything else: the orphan watchdog fires
+    // only when this pid later changes (issue #19). A GUI app reparented
+    // to PID 1 with its listener still bound is by definition orphaned —
+    // exiting closes :7777 and reparents owned children to init, which
+    // reaps the zombies instead of accumulating them.
+    boot_parent_pid = plat.parentProcessId();
     if (env_home) |home| {
         // Upgrade old CLI-written hooks before any agent starts another
         // session. The migration recognizes only Petdex-owned legacy
@@ -3339,6 +3345,18 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
         },
         .poll_tick => |timer| {
             if (timer.outcome != .fired) return;
+            // Orphan watchdog (issue #19): the native runtime must not
+            // outlive its desktop parent, spinning CPU with :7777 bound
+            // and zombies accumulating. Sampled every 100 ticks (10s);
+            // launchd-owned (ppid 1 at boot) and Windows builds never fire.
+            parent_watch_ticks +%= 1;
+            if (parent_watch_ticks % parent_watch_interval_ticks == 0 and
+                plat.parentOrphaned(boot_parent_pid, plat.parentProcessId()))
+            {
+                std.debug.print("petdex: desktop parent exited; shutting down orphaned runtime\n", .{});
+                plat.requestQuit();
+                return;
+            }
             // Check if the active pet package has changed and needs reload.
             if (model.sheet_loaded and model.active_pet < catalog_mod.catalog_len) {
                 const entry = &catalog[model.active_pet];
@@ -3565,6 +3583,15 @@ test "a care request spools the JSON the shared-ledger drain consumes" {
 }
 
 var care_seq = std.atomic.Value(u64).init(0);
+
+/// Parent pid observed at boot, for the orphan watchdog (issue #19). Null
+/// until boot() captures it; null on Windows where plat.parentProcessId
+/// has no cheap query and the watchdog stays disabled.
+var boot_parent_pid: ?u32 = null;
+/// poll_tick fires every 100ms; the watchdog samples the parent once per
+/// this many ticks (10s) so a getppid per tick never lands on the hot path.
+const parent_watch_interval_ticks: u32 = 100;
+var parent_watch_ticks: u32 = 0;
 
 /// Spool one care request into ``~/.petdex/runtime/evo-queue/`` -- the same spool every
 /// agent's hook payload lands in -- so the drain applies it to the one shared ledger. The
