@@ -32,7 +32,7 @@ index b520a23..b66e0d8 100644
      const below = (anchor.placement == .below) != flipped;
      const side_space = @max(0, if (below) space_below else space_above);
 -    height = @min(height, side_space);
-+    if (space_below <= 0 and space_above <= 0) {
++    if (side_space <= 0) {
 +        // A full-window anchor has no preferred side, but the anchored
 +        // surface must remain visible. Keep its intrinsic height and let
 +        // the final window clamp place it inside the window.
