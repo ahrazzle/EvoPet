@@ -560,6 +560,46 @@ pub fn processId() u32 {
     };
 }
 
+/// Parent pid at call time. Null where no cheap query exists (Windows:
+/// a Toolhelp snapshot per poll is overkill for a liveness hint, so the
+/// orphan watchdog stays disabled there).
+pub fn parentProcessId() ?u32 {
+    return switch (builtin.os.tag) {
+        .windows => null,
+        .linux => @intCast(std.os.linux.getppid()),
+        else => @intCast(std.c.getppid()),
+    };
+}
+
+/// True when a process whose parent was `boot_ppid` at startup is now
+/// orphaned: the parent pid changed. A parent pid never changes except
+/// by the parent dying (the child is reparented to init or the nearest
+/// subreaper), so no kill()-probing is needed — and a zombie parent,
+/// still our parent until its own launcher waits, correctly does not
+/// fire. `boot_ppid == 1` (launched by init/launchd) disables the check:
+/// ppid 1 is home there, not orphanhood (issue #19).
+pub fn parentOrphaned(boot_ppid: ?u32, current_ppid: ?u32) bool {
+    const boot = boot_ppid orelse return false;
+    const current = current_ppid orelse return false;
+    if (boot == 1) return false;
+    return current != boot;
+}
+
+test "parentOrphaned fires only on reparenting away from a real parent" {
+    const t = std.testing;
+    // Unknown platform (null): never fire.
+    try t.expect(!parentOrphaned(null, 1));
+    try t.expect(!parentOrphaned(500, null));
+    // Launched by init/launchd: ppid 1 is home, not orphanhood.
+    try t.expect(!parentOrphaned(1, 1));
+    try t.expect(!parentOrphaned(1, 500));
+    // Ordinary life: parent unchanged.
+    try t.expect(!parentOrphaned(500, 500));
+    // Parent died: reparented to init, or adopted by a subreaper.
+    try t.expect(parentOrphaned(500, 1));
+    try t.expect(parentOrphaned(500, 600));
+}
+
 /// GUI application that owns the terminal hosting the latest agent event.
 /// Hook metadata is allowlisted and never becomes an arbitrary bundle id.
 pub const OriginApplication = enum(u8) {

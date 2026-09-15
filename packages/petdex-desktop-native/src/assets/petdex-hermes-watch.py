@@ -38,6 +38,13 @@ PID = RUNTIME / "hermes-watch.pid"
 ENDPOINT = "http://127.0.0.1:7777/bubble"
 DISCOVERY_SECONDS = 2.0
 MAX_WATCHES = 8
+# Persisted Petdex cards live here (one <session_id>.json title file per
+# conversation, written by the hook runner). The sweep below only ever closes
+# cards that already exist on disk, so other agents' cards are never touched.
+SESSIONS_DIR = RUNTIME / "sessions"
+# Cap persisted-card sweep posts per loop iteration so a large backlog of
+# stale cards cannot stall the live-event path (each post blocks ~0.5s max).
+SWEEP_POSTS_PER_TICK = 8
 # Hermes commonly leaves ended/abandoned gateway rows open. Reconciliation is
 # a fallback for an already-running gateway, not a session browser: require a
 # recent durable progress description before creating any card. Normal hooks
@@ -239,6 +246,44 @@ def digest(event: dict[str, Any]) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def persisted_card_stems(limit: int = 64) -> set[str]:
+    """File stems of persisted Petdex cards (<session_id> for each *.json)."""
+    try:
+        names = sorted(SESSIONS_DIR.iterdir())
+    except OSError:
+        return set()
+    stems: set[str] = set()
+    for path in names:
+        if path.suffix != ".json" or not path.is_file():
+            continue
+        stem = path.stem.strip()
+        if stem:
+            stems.add(stem)
+        if len(stems) >= limit:
+            break
+    return stems
+
+
+def terminal_for_persisted_card(
+    stem: str,
+    terminals: dict[str, dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Terminal event for a persisted card, if Hermes reports it ended/stale.
+
+    Matches on the canonical conversation key first, then on the raw Hermes
+    source session id (cards for keyless sessions are filed under the row id,
+    e.g. ``bg_135346_d25491.json``). Returns None when the card is unknown
+    to Hermes — never invent a terminal state for another agent's card.
+    """
+    terminal = terminals.get(stem)
+    if terminal is not None:
+        return terminal
+    for candidate in terminals.values():
+        if stem == str(candidate.get("source_session_id") or "").strip():
+            return candidate
+    return None
+
+
 def post(event: dict[str, Any]) -> bool:
     try:
         token = TOKEN.read_text(encoding="utf-8").strip()
@@ -271,6 +316,7 @@ def run() -> int:
             return 75
         PID.write_text(str(os.getpid()), encoding="utf-8")
         previous: dict[str, dict[str, Any]] = {}
+        swept: set[str] = set()
         try:
             while lease_alive():
                 result = snapshot()
@@ -303,6 +349,24 @@ def run() -> int:
                             }
                         if post(terminal):
                             previous.pop(key, None)
+                # Persisted-card sweep (issue #18): a card whose Hermes session
+                # already ended before this watcher started never enters
+                # `previous`, so the transition path above never closes it and
+                # the desktop keeps rendering `Thinking...`. Close exactly those
+                # cards Hermes reports as terminal — keyed or keyless — and only
+                # those; unknown stems belong to other agents or aged-out rows.
+                posted = 0
+                for stem in sorted(persisted_card_stems()):
+                    if posted >= SWEEP_POSTS_PER_TICK:
+                        break
+                    if stem in current or stem in swept:
+                        continue
+                    terminal = terminal_for_persisted_card(stem, terminals)
+                    if terminal is None:
+                        continue
+                    posted += 1
+                    if post(terminal):
+                        swept.add(stem)
                 time.sleep(DISCOVERY_SECONDS)
         finally:
             remove_owned_pid()
