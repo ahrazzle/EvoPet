@@ -1,0 +1,45 @@
+diff --git a/src/primitives/canvas/widget_anchored_tests.zig b/src/primitives/canvas/widget_anchored_tests.zig
+index a577b6c..74f7a05 100644
+--- a/src/primitives/canvas/widget_anchored_tests.zig
++++ b/src/primitives/canvas/widget_anchored_tests.zig
+@@ -25,11 +25,18 @@ test "anchored frame places below the anchor with the default offset" {
+     try std.testing.expectEqual(@as(f32, 90), frame.height);
+ }
+ 
++test "anchored frame keeps intrinsic height when a full-window anchor has no side room" {
++    const child = Widget{ .kind = .dropdown_menu, .frame = geometry.RectF.init(0, 0, 140, 90) };
++    const frame = anchoredFrame(child, .{}, geometry.RectF.init(0, 0, 400, 300));
++    try std.testing.expectEqual(@as(f32, 140), frame.width);
++    try std.testing.expectEqual(@as(f32, 90), frame.height);
++    try std.testing.expectEqual(@as(f32, 210), frame.y);
++}
++
+ test "anchored frame flips above when below does not fit and above has more room" {
+     const child = Widget{ .kind = .dropdown_menu, .frame = geometry.RectF.init(0, 0, 140, 90) };
+-    // Anchor near the bottom: below has 300-190-4 = 106... use a lower one.
++    // Anchor near the bottom: below has 300-278-4 = 18 < 90; above has 250 - 4 = 246.
+     const frame = anchoredFrame(child, .{}, geometry.RectF.init(20, 250, 120, 28));
+-    // below space = 300 - 278 - 4 = 18 < 90; above space = 250 - 4 = 246.
+     try std.testing.expectEqual(@as(f32, 250 - 4 - 90), frame.y);
+     try std.testing.expectEqual(@as(f32, 90), frame.height);
+ }
+diff --git a/src/primitives/canvas/widget_layout.zig b/src/primitives/canvas/widget_layout.zig
+index b520a23..b66e0d8 100644
+--- a/src/primitives/canvas/widget_layout.zig
++++ b/src/primitives/canvas/widget_layout.zig
+@@ -350,7 +350,14 @@ pub fn anchoredWidgetFrame(
+     const flipped = height > preferred_space and other_space > preferred_space;
+     const below = (anchor.placement == .below) != flipped;
+     const side_space = @max(0, if (below) space_below else space_above);
+-    height = @min(height, side_space);
++    if (space_below <= 0 and space_above <= 0) {
++        // A full-window anchor has no preferred side, but the anchored
++        // surface must remain visible. Keep its intrinsic height and let
++        // the final window clamp place it inside the window.
++        height = @min(height, window.height);
++    } else {
++        height = @min(height, side_space);
++    }
+ 
+     const y = if (below) anchor_frame.maxY() + offset else anchor_frame.y - offset - height;
+     var x = switch (anchor.alignment) {

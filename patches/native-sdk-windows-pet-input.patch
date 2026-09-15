@@ -66,7 +66,7 @@ index 7debdf9..346cc4c 100644
              // the engine's wheel physics (TrackPopupMenu is the natural
              // future context-menu seam — the tray already uses it).
 -            .gpu_surface_scroll_drivers, .context_menus, .view_surface_adoption => false,
-+            .context_menus => true,
++            .context_menus => self.web_engine == .system,
 +            .gpu_surface_scroll_drivers, .view_surface_adoption => false,
          };
      }
@@ -109,12 +109,13 @@ index 7debdf9..346cc4c 100644
  fn closeWindow(context: ?*anyopaque, window_id: platform_mod.WindowId) anyerror!void {
      const self: *WindowsPlatform = @ptrCast(@alignCast(context.?));
      if (native_sdk_windows_close_window(self.host, window_id) == 0) return error.CloseFailed;
-@@ -952,6 +994,22 @@ fn presentGpuSurfacePixels(context: ?*anyopaque, pixels: platform_mod.GpuSurface
+@@ -952,6 +994,23 @@ fn presentGpuSurfacePixels(context: ?*anyopaque, pixels: platform_mod.GpuSurface
      ) == 0) return error.ViewNotFound;
  }
  
 +fn showContextMenu(context: ?*anyopaque, request: platform_mod.ContextMenuRequest) anyerror!void {
 +    const self: *WindowsPlatform = @ptrCast(@alignCast(context.?));
++    if (self.web_engine != .system) return error.UnsupportedService;
 +    var items: [platform_mod.max_context_menu_items]WindowsContextMenuItem = undefined;
 +    const count = @min(request.items.len, items.len);
 +    for (request.items[0..count], 0..) |item, index| {
