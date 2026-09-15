@@ -40,13 +40,24 @@ const geometry = native_sdk.geometry;
 const canvas_label = "pet-canvas";
 const frame_w: f32 = 192;
 const frame_h: f32 = 208;
+const default_scale: f32 = 0.7;
 const max_scale: f32 = 1.2;
 const pet_edge_pad: f32 = 8;
-const win_w: f32 = frame_w * max_scale;
-// Linux keeps the startup canvas fixed instead of resizing it to the sprite.
-// Reserve the bottom edge pad in that canvas so the largest supported sprite
-// still starts at y=0 rather than clipping its top rows.
-const win_h: f32 = frame_h * max_scale + (if (builtin.target.os.tag == .linux) pet_edge_pad else 0);
+// Linux keeps a fixed startup canvas. Windows and macOS start at the
+// default pet size so a host that cannot apply the first-frame resize does
+// not expose the max canvas as an oversized click surface; the normal fit
+// path still resizes to a persisted user scale when the host supports it.
+const startup_scale: f32 = if (builtin.target.os.tag == .linux) max_scale else default_scale;
+const win_w: f32 = frame_w * startup_scale;
+// Reserve the bottom edge pad in Linux's fixed canvas so the largest
+// supported sprite still starts at y=0 rather than clipping its top rows.
+const win_h: f32 = frame_h * startup_scale + (if (builtin.target.os.tag == .linux) pet_edge_pad else 0);
+// Linux-only canvas height for the linux* geometry helpers below. Linux
+// draws the pet inside its fixed startup canvas on every path, so those
+// helpers must use this constant, never the host's startup window (which
+// is smaller on Windows/macOS). Identical to win_h on a Linux build, and
+// it keeps the cross-host unit test host-independent.
+const linux_win_h: f32 = frame_h * max_scale + pet_edge_pad;
 const cols: u64 = 8;
 const sheet_image_id: u64 = 1;
 /// What a first run offers to download. Small, friendly, and already in
@@ -1601,7 +1612,7 @@ fn freeSheet(s: *Sheet) void {
     s.* = .{};
 }
 
-var initial_scale: f32 = 0.7;
+var initial_scale: f32 = default_scale;
 var initial_pet: u32 = 0;
 var initial_bubbles: bool = true;
 var initial_bubbles_per_conversation: bool = true;
@@ -4547,7 +4558,7 @@ fn settleBubbleWindow(model: *Model, fx: *Effects, bubble_h: f32, want_x: f64) b
 /// one helper so bubble anchoring and pointer hit testing use the same
 /// geometry at every scale.
 fn linuxPetTopLocal(scale: f32) f32 {
-    return win_h - pet_edge_pad - frame_h * scale;
+    return linux_win_h - pet_edge_pad - frame_h * scale;
 }
 
 /// GtkPopover's GTK_POS_TOP placement puts the popup above the pointing
@@ -4558,7 +4569,7 @@ fn linuxPetTopLocal(scale: f32) f32 {
 /// the wrong side and cover the sprite on the X11/GTK path.
 fn linuxBubbleAnchorY(scale: f32, flipped: bool, bubble_h: f32) f32 {
     const pet_top = linuxPetTopLocal(scale);
-    const pet_bottom = win_h - pet_edge_pad;
+    const pet_bottom = linux_win_h - pet_edge_pad;
     const clearance: f32 = @floatCast(bubble_pet_clearance);
     return if (flipped)
         pet_bottom + clearance + bubble_h
@@ -6546,7 +6557,7 @@ test "linux popup anchors clear the fixed canvas pet on both sides" {
     const scale: f32 = 1;
     const bubble_h: f32 = 115;
     const pet_top = linuxPetTopLocal(scale);
-    const pet_bottom = win_h - pet_edge_pad;
+    const pet_bottom = linux_win_h - pet_edge_pad;
 
     const above = linuxBubbleAnchorY(scale, false, bubble_h);
     try std.testing.expectApproxEqAbs(pet_top - @as(f32, @floatCast(bubble_pet_clearance)), above, 0.001);
