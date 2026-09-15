@@ -4800,13 +4800,15 @@ pub fn rootView(ui: *AppUi, model: *const Model) AppUi.Node {
     });
     node.widget.image_fit = .stretch;
     node.widget.image_sampling = .nearest;
+    // Bind the authored menu to the sprite itself on every host. The
+    // presenter-less Windows path asks the runtime to mount its anchored
+    // fallback against the deepest menu-bearing node; keeping the same
+    // declaration on the sprite makes that target unambiguous while the
+    // parent binding remains the canvas-wide fallback route.
+    node.context_menu = &pet_menu;
     // Linux hands primary presses to the compositor through GTK/GDK;
     // secondary presses still follow the canvas context-menu route.
     if (builtin.target.os.tag == .linux) {
-        // Bind the menu to the sprite itself, not only its layout parent.
-        // Linux resolves the deepest context-menu node on the right-click
-        // hit route before mounting the canvas fallback menu.
-        node.context_menu = &pet_menu;
         return ui.column(.{ .grow = 1, .main = .end, .cross = .center, .window_drag = true, .context_menu = &pet_menu }, .{
             node,
             ui.el(.stack, .{ .width = 1, .height = pet_edge_pad }, .{}),
