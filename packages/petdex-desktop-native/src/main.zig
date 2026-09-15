@@ -47,7 +47,7 @@ const pet_edge_pad: f32 = 8;
 // default pet size so a host that cannot apply the first-frame resize does
 // not expose the max canvas as an oversized click surface; the normal fit
 // path still resizes to a persisted user scale when the host supports it.
-const startup_scale: f32 = if (builtin.target.os.tag == .linux) max_scale else default_scale;
+const startup_scale: f32 = max_scale;
 const win_w: f32 = frame_w * startup_scale;
 // Reserve the bottom edge pad in Linux's fixed canvas so the largest
 // supported sprite still starts at y=0 rather than clipping its top rows.
