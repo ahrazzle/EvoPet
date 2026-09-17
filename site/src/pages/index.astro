@@ -6,6 +6,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 // section links the lineage repos by name, so it imports the same constants
 // rather than hardcoding URLs.
 import { PET_REPO, REPOS, SHELL_REPO, TOOLCHAIN_REPO } from '../data/nav';
+// The gate XP below comes from the ported curve, not from this page: the gate
+// levels are the creator's setting, their cost is the ladder's, and retyping
+// either here is how the numbers drifted before.
+import { formatXp, gateReport } from '../data/curve';
 
 const xpTable = [
   { event: 'task_success', xp: '14', when: 'a turn ends successfully, once per turn' },
@@ -17,12 +21,16 @@ const xpTable = [
   { event: 'session_start', xp: '2', when: 'an agent session begins' },
 ];
 
+// The default pet's five forms, with the cumulative XP that opens each one,
+// computed from the curve. The widths are the ramp's visual spacing, not data.
 const stages = [
-  { name: 'egg', xp: '0', width: 1, colour: 'var(--stage-egg)' },
-  { name: 'hatchling', xp: '1,041', width: 1.5, colour: 'var(--stage-hatchling)' },
-  { name: 'child', xp: '5,040', width: 5, colour: 'var(--stage-child)' },
-  { name: 'teen', xp: '10,006', width: 10, colour: 'var(--stage-teen)' },
-  { name: 'adult', xp: '20,158', width: 20, colour: 'var(--stage-adult)' },
+  { name: 'egg', xp: formatXp(0), width: 1, colour: 'var(--stage-egg)' },
+  ...gateReport().map((row) => ({
+    name: row.to,
+    xp: formatXp(row.xp),
+    width: { hatchling: 1.5, child: 5, teen: 10, adult: 20 }[row.to] ?? 20,
+    colour: `var(--stage-${row.to})`,
+  })),
 ];
 
 // Code samples live in the frontmatter and are emitted as string values: in an
@@ -33,7 +41,7 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
 
 <BaseLayout
   title="EvoPet: one pet that grows from all of your agent work"
-  description="EvoPet is a pixel-art desktop companion that earns XP from real agent turns across every profile and every agent you run, and evolves on a ladder of 99 levels."
+  description="EvoPet is a pixel-art desktop companion that earns XP from real agent turns across every profile and every agent you run, and grows on a ladder where each level takes more XP than the last."
   suffix={false}
 >
   <section class="hero">
@@ -252,11 +260,11 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
     </section>
 
     <section class="section tint--sky">
-      <h2>The ladder: 99 levels, 100,000 XP</h2>
+      <h2>The ladder: every level costs more than the last</h2>
       <p class="prose">
         Every pet climbs the same curve, so a level means the same amount of work in every package.
         It is cheap at the start and long at the end:
-        <code>xp_for_level(L) = round(100_000 &times; ((L &minus; 1) &divide; 98) &sup2;)</code>.
+        <code>xp_for_level(L) = 10 &times; (L &minus; 1)&sup2; + round((L &minus; 1)⁶ ÷ 1,000,000,000)</code>.
         The first level costs 10 XP, which one prompt and one success covers with room to spare.
       </p>
       <ul class="ramp">
@@ -278,7 +286,8 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
       <p class="prose">
         Those are the default pet's evolution gates. A gate is a level your pet reaches, and when
         it does, it changes form. The numbers above are the levels and the XP that opens each one.
-        Fifty thousand XP, half the cap, lands inside level 70.
+        Fifty thousand cumulative XP lands inside a level partway up the ladder; the XP bar shows
+        progress toward the next level.
       </p>
     </section>
 

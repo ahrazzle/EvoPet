@@ -20,7 +20,7 @@ pub const max_catalog = 96;
 
 /// The key the EvoPet compiler writes into an EvoPet package's pet.json,
 /// quoted as it appears in the file. Its value is the block the
-/// evolution system reads: `{evolutionGates, maxLevel, capXp, curve}`.
+/// evolution system reads: `{evolutionGates, maxLevel, topXp, curve}`.
 pub const evopet_marker = "\"evopet\"";
 
 /// Why a package is listed but not selectable. One sentence on the
@@ -149,7 +149,7 @@ pub fn catalogIndexOf(slug: []const u8) ?usize {
 test "the evopet marker is a keyed object, not a mention of the word" {
     // The shape our compiler writes, trimmed to the fields that matter.
     const capable =
-        \\{"id":"tamahermes","displayName":"TamaHermes","description":"An evolving desktop companion.","spritesheetPath":"spritesheet.webp","evopet":{"evolutionGates":[11,23,32,45],"maxLevel":99,"capXp":100000,"curve":"round(100000 * ((L - 1) / 98) ** 2.0)"}}
+        \\{"id":"tamahermes","displayName":"TamaHermes","description":"An evolving desktop companion.","spritesheetPath":"spritesheet.webp","evopet":{"evolutionGates":[11,23,32,45],"maxLevel":999,"topXp":998019880,"curve":"round(10 * (L - 1) ** 2 + (L - 1) ** 6 / 1000000000)"}}
     ;
     try std.testing.expect(hasEvopetBlock(capable));
 

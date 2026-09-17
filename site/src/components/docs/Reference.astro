@@ -2,12 +2,13 @@
 // "Reference" — constants, functions and the code map, so a reader can find the
 // thing this documentation is describing.
 import {
-  CAP_XP,
   DEFAULT_EVOLUTION_GATES,
-  EXPONENT,
   MANIFEST_KEY,
   MAX_LEVEL,
+  QUADRATIC_TERM,
   STAGE_ORDER,
+  TAIL_DIVISOR,
+  TOP_XP,
 } from '../../data/curve';
 import { DOC_GROUPS, type DocGroup } from '../../data/nav';
 
@@ -15,16 +16,20 @@ const group = DOC_GROUPS.find((entry) => entry.id === 'reference') as DocGroup;
 
 const constants: [string, string][] = [
   ['MAX_LEVEL', String(MAX_LEVEL)],
-  ['CAP_XP', CAP_XP.toLocaleString('en-US')],
-  ['EXPONENT', String(EXPONENT)],
+  ['QUADRATIC_TERM', String(QUADRATIC_TERM)],
+  ['TAIL_DIVISOR', TAIL_DIVISOR.toLocaleString('en-US')],
+  ['TOP_XP', TOP_XP.toLocaleString('en-US')],
   ['MANIFEST_KEY', `"${MANIFEST_KEY}"`],
   ['STAGE_ORDER', `(${STAGE_ORDER.map((stage) => `"${stage}"`).join(', ')})`],
   ['DEFAULT_EVOLUTION_GATES', `(${DEFAULT_EVOLUTION_GATES.join(', ')})`],
 ];
 
 const functions: [string, string][] = [
-  ['xp_for_level(L)', 'cumulative XP needed to reach a level; level 1 is 0, level 99 is the cap'],
-  ['level_for_xp(xp)', 'the level a pet with that much cumulative XP is in (1–99)'],
+  [
+    'xp_for_level(L)',
+    'cumulative XP needed to reach a level; level 1 is 0, the top rung is TOP_XP',
+  ],
+  ['level_for_xp(xp)', 'the level a pet with that much cumulative XP is in (1–999)'],
   ['level_progress(xp)', 'the level band the bar fills against: floor, ceiling, percent'],
   ['validate_gates(gates)', 'checks a creator’s gate list and raises ValueError, naming the problem'],
   ['gates_from_manifest(manifest)', 'the creator’s gates, or the default pet’s when it declares none'],
@@ -131,8 +136,9 @@ const codeMap: [string, string][] = [
       </table>
     </div>
     <p>
-      The pet's own suite exercises the same formula this site renders, so a constant moved in one
-      place and not the other is a failing test rather than a wrong page.
+      This site's own <code>src/lib/evopet-curve.test.ts</code> and the pet's suite pin the same
+      frozen 999-value digest, so a constant moved in one place and not the other is a failing test
+      rather than a wrong page.
     </p>
   </section>
 
