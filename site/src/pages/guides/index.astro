@@ -73,7 +73,7 @@ GET  ${LIBRARY_API_DEFAULT}/api/manifest       # the public index, approved pets
           <h4>1. Pick levels, not XP amounts</h4>
           <p>
             A gate is a <em>level</em> your pet reaches; its cost is whatever the fixed curve says
-            that level is worth. One to four gates, strictly increasing, levels 1&ndash;99. Keep the
+            that level is worth. One to four gates, strictly increasing, levels 1 through 999. Keep the
             first gate above level 1: a gate at level 1 fires at 0 XP, so the pet starts already
             hatched and its first form is never drawn.
           </p>
@@ -81,9 +81,9 @@ GET  ${LIBRARY_API_DEFAULT}/api/manifest       # the public index, approved pets
         <li class="guide-step">
           <h4>2. Price the gates in turns</h4>
           <p>
-            <code>xp_for_level(L) = round(100_000 &times; ((L &minus; 1) &divide; 98)&sup2;)</code>,
-            and a good turn is about 18 XP. Gates at 20, 40 and 60 cost 3,759, 15,837 and 36,245 XP
-            &mdash; about 209, 880 and 2,014 turns. Gates below level 30 feel fast; gates above level
+            <code>xp_for_level(L) = 10 &times; (L &minus; 1)&sup2; + round((L &minus; 1)⁶ ÷ 1,000,000,000)</code>,
+            and a good turn is about 18 XP. Gates at 20, 40 and 60 cost 3,610, 15,214 and 34,852 XP
+            &mdash; about 201, 845 and 1,936 turns. Gates below level 30 feel fast; gates above level
             50 do not.
           </p>
         </li>
@@ -118,8 +118,8 @@ GET  ${LIBRARY_API_DEFAULT}/api/manifest       # the public index, approved pets
         <span class="note-title">What a correct run gives you</span>
         <p>
           Gates at 20, 40 and 60 give four forms &mdash; egg, hatchling, child, teen; three gates
-          cannot reach adult, by design. The default pet's gates, 11/23/32/45, are 1,041, 5,040,
-          10,006 and 20,158 XP, matching the gate control on the mechanics page. An installed gate
+          cannot reach adult, by design. The default pet's gates, 11/23/32/45, are 1,000, 4,840,
+          9,611 and 19,367 XP, matching the gate control on the mechanics page. An installed gate
           becomes a ledger floor, and XP only rises, so a pet cannot regress out of a form.
         </p>
       </div>
@@ -129,7 +129,7 @@ GET  ${LIBRARY_API_DEFAULT}/api/manifest       # the public index, approved pets
         <p>
           A block present but invalid is refused at install, and the error names the file:
           <code>pet.json: evolution gates must strictly increase; 20 follows 40</code>. Out of range
-          (&gt;99), not increasing, zero gates, or more than four gates all fail the same validator.
+          (&gt;999), not increasing, zero gates, or more than four gates all fail the same validator.
           Silence is not a declaration, so <code>{'"evopet": {}'}</code> leaves installed gates
           alone. A line missing a form your gates imply is not caught here; it fails later, when the
           pet grows into it.

@@ -4,7 +4,7 @@
 // Every number here is computed from the ported curve (src/data/curve.ts),
 // which is a literal port of tamahermes/levels.py. Nothing in this file types a
 // level's XP by hand, so the table cannot drift from the formula.
-import { DEFAULT_EVOLUTION_GATES, MAX_LEVEL, STAGE_ORDER, curveReport, formatXp, gateReport, xpForLevel } from '../../data/curve';
+import { DEFAULT_EVOLUTION_GATES, MAX_LEVEL, QUADRATIC_TERM, STAGE_ORDER, TAIL_DIVISOR, curveReport, formatXp, gateReport, xpForLevel } from '../../data/curve';
 import { DOC_GROUPS, type DocGroup } from '../../data/nav';
 
 const group = DOC_GROUPS.find((entry) => entry.id === 'mechanics') as DocGroup;
@@ -27,19 +27,13 @@ const xpEvents: [string, number, string][] = [
 
 const statsOnly = ['rest', 'token_usage', 'idle_minute', 'drag'];
 
-const curve = curveReport([1, 2, 20, 50, 70, 99]);
-const halfCapLevel = (() => {
-  let level = 1;
-  for (let candidate = 1; candidate <= 99; candidate += 1) {
-    if (xpForLevel(candidate) <= 50_000) level = candidate;
-  }
-  return level;
-})();
-const lastStepCost = xpForLevel(99) - xpForLevel(50);
+const curve = curveReport([1, 2, 20, 50, 70, 99, 999]);
+const firstStepCost = xpForLevel(2) - xpForLevel(1);
+const lastStepCost = xpForLevel(MAX_LEVEL) - xpForLevel(MAX_LEVEL - 1);
 const gates = gateReport(DEFAULT_EVOLUTION_GATES);
 
 const refusals = [
-  'evolution gate 120 is outside 1..99',
+  'evolution gate 1000 is outside 1..999',
   'evolution gates must strictly increase; 10 follows 30',
   'a pet needs at least one evolution gate',
   'at most 4 gates supported (5 forms); got 5',
@@ -121,9 +115,10 @@ const trackerOwners: [string, string, string, string][] = [
       everywhere. Fixed by EvoPet, cheap at the start and long at the end:
     </p>
     <p>
-      <code>xp_for_level(L) = round(100_000 × ((L − 1) ÷ {MAX_LEVEL - 1})²)</code>,
-      that is <code>CAP_XP = 100,000</code>, <code>MAX_LEVEL = {MAX_LEVEL}</code>,{' '}
-      <code>EXPONENT = 2.0</code>.
+      <code>xp_for_level(L) = {QUADRATIC_TERM} × (L − 1)² + round((L − 1)⁶ ÷ {formatXp(TAIL_DIVISOR)})</code>,
+      that is <code>QUADRATIC_TERM = {QUADRATIC_TERM}</code>,{' '}
+      <code>TAIL_DIVISOR = {formatXp(TAIL_DIVISOR)}</code>, and a level clamped to the integers from 1 to{' '}
+      <code>MAX_LEVEL = {MAX_LEVEL}</code>.
     </p>
     <div class="table-scroll">
       <table>
@@ -149,17 +144,21 @@ const trackerOwners: [string, string, string, string][] = [
       </table>
     </div>
     <p>
-      XP is cumulative and never decreases, so a level once reached is never lost. Half the cap,
-      <span class="num">{formatXp(50_000)}</span> XP, lands inside level{' '}
-      <span class="num">{halfCapLevel}</span>, and the climb from level 50 to level 99 costs{' '}
-      <span class="num">{formatXp(lastStepCost)}</span> XP.
+      XP is cumulative and never decreases, so a level once reached is never lost. Each level is
+      derived from that same cumulative XP and the ladder continues through the bounded level range,
+      so the first step costs <span class="num">{formatXp(firstStepCost)}</span> XP while the last
+      rung on it costs <span class="num">{formatXp(lastStepCost)}</span> XP: every level takes more
+      work than the one before it.
     </p>
     <p>
       <strong>The bar fills against the level, not the form.</strong> <code>level_progress(xp)</code>{' '}
       reports the level and where it sits between its floor (<code>xp_for_level(L)</code>) and
       ceiling (<code>xp_for_level(L + 1)</code>), so the bar resets at every level-up while the
-      sprite changes only at a gate. At level 99 the ceiling is <code>None</code>, the bar reports
-      100%, and the drawn value snaps to 5% buckets.
+      sprite changes only at a gate. It measures progress inside the current level, and every level
+      below the top of the ladder has a rung above it, so the drawn value stops short of complete.
+      Only at level <span class="num">{MAX_LEVEL}</span> is there nothing above it: there the level
+      number is <span class="num">{MAX_LEVEL}</span> and the bar is complete. The drawn value snaps
+      to 5% buckets.
     </p>
   </section>
 
@@ -445,7 +444,7 @@ const trackerOwners: [string, string, string, string][] = [
     <div class="note note--warn">
       <span class="note-title">Two notes in the project disagree about the numbers</span>
     <p>
-        <code>levels-and-evolution.md</code>, the pet's own contract, describes the 99-level ladder
+        <code>levels-and-evolution.md</code>, the pet's own contract, describes the fixed ladder
         with gates at <span class="num">11/23/32/45</span>. An older mechanics write-up describes
         stage thresholds of <span class="num">120/320/900/1800</span> and a level of{' '}
         <code>1 + xp // 25</code>. Both cannot be true. This site publishes the gates model, which

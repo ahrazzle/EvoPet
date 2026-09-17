@@ -11,14 +11,20 @@
  * to a reader as the guardrails of the gate control.
  */
 
-export const MAX_LEVEL = 99;
-export const CAP_XP = 100_000;
-export const EXPONENT = 2.0;
+export const MAX_LEVEL = 999;
+export const QUADRATIC_TERM = 10;
+export const TAIL_DIVISOR = 1_000_000_000;
+/**
+ * The ladder's top rung: `xpForLevel(MAX_LEVEL)`. A derived value, not a cap —
+ * the number is the same in the pet's own module and is pinned by a test on
+ * both sides so the two ports cannot drift apart.
+ */
+export const TOP_XP = 998_019_880;
 export const MANIFEST_KEY = 'evopet';
 
 export const STAGE_ORDER = ['egg', 'hatchling', 'child', 'teen', 'adult'] as const;
 
-/** Reaching level 11 → 1,041 XP · 23 → 5,040 · 32 → 10,006 · 45 → 20,158 */
+/** Reaching level 11 → 1,000 XP · 23 → 4,840 · 32 → 9,611 · 45 → 19,367 */
 export const DEFAULT_EVOLUTION_GATES: readonly number[] = [11, 23, 32, 45];
 
 export interface GateRow {
@@ -37,20 +43,35 @@ export interface CurveRow {
   costXp: number;
 }
 
-/** Cumulative XP needed to *reach* `level`. Level 1 is 0, level 99 is the cap. */
+/**
+ * Cumulative XP needed to *reach* `level`. Level 1 is 0, level `MAX_LEVEL` is
+ * the top rung. `10 * u²` is the early ladder every pet actually climbs; the
+ * `u⁶ / 1e9` tail is under 1 XP through level 31 and only dominates past level
+ * ~300, which is what keeps each level costlier than the one before it.
+ */
 export function xpForLevel(level: number): number {
-  const clamped = Math.max(1, Math.min(MAX_LEVEL, Math.trunc(level)));
-  return Math.round(CAP_XP * ((clamped - 1) / (MAX_LEVEL - 1)) ** EXPONENT);
+  const u = Math.max(0, Math.min(MAX_LEVEL - 1, Math.trunc(level) - 1));
+  return QUADRATIC_TERM * u * u + Math.round(u ** 6 / TAIL_DIVISOR);
 }
 
-/** The level a pet holding `xp` cumulative XP is in (1..99). */
+/**
+ * The level a pet holding `xp` cumulative XP is in (1..999): the largest level
+ * whose floor the XP has reached. A binary search over the bounded range — ten
+ * probes against the single `xpForLevel`, monotone by construction, with no
+ * inverse to get wrong and no early return at a round number. Anything the
+ * ladder cannot hold (`Infinity`, a value past `2⁵³ − 1`) answers `MAX_LEVEL`
+ * rather than throwing, because a growth event must never strand a pet.
+ */
 export function levelForXp(xp: number): number {
   const value = Math.max(0, Math.trunc(xp));
-  if (value >= CAP_XP) return MAX_LEVEL;
-  for (let candidate = MAX_LEVEL; candidate > 1; candidate -= 1) {
-    if (value >= xpForLevel(candidate)) return candidate;
+  let lo = 1;
+  let hi = MAX_LEVEL;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (xpForLevel(mid) <= value) lo = mid;
+    else hi = mid - 1;
   }
-  return 1;
+  return lo;
 }
 
 /**
@@ -109,7 +130,7 @@ export function curveReport(levels: readonly number[]): CurveRow[] {
   }));
 }
 
-/** `1,041` — every number on the site is grouped by this, never by eye. */
+/** `1,000` — every number on the site is grouped by this, never by eye. */
 export function formatXp(value: number): string {
   return value.toLocaleString('en-US');
 }
