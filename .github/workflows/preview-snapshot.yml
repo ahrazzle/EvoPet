@@ -49,13 +49,45 @@ jobs:
           # credentials, so we never run a non-main branch here.
           ref: main
 
+      # Secrets live in the manifest-snapshot environment. When they are absent
+      # every run currently dies inside the script's DB/R2 imports, so we skip
+      # before installing: a missing-config run is a no-op, not a red build.
+      # Names are printed, never values.
+      - name: Check required configuration
+        id: config
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_PURGE_TOKEN: ${{ secrets.CLOUDFLARE_PURGE_TOKEN }}
+        run: |
+          required="DATABASE_URL R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET CLOUDFLARE_ZONE_ID CLOUDFLARE_PURGE_TOKEN"
+          missing=()
+          for name in $required; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::SKIP preview-snapshot: ${#missing[@]}/7 required configuration values are empty in the manifest-snapshot environment: ${missing[*]}. Nothing installed, nothing uploaded. Add them in Settings > Environments > manifest-snapshot (or as repo secrets) and re-run."
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "All 7 required configuration values are present; proceeding."
+
       - name: Setup Bun
+        if: steps.config.outputs.skip != 'true'
         uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
+        if: steps.config.outputs.skip != 'true'
         run: bun install --frozen-lockfile
 
       - name: Publish previews
+        if: steps.config.outputs.skip != 'true'
         # MODE is validated to check|apply by the script; the choice input
         # already constrains it, and passing via env (not interpolation)
         # avoids any shell-injection surface.
