@@ -6,6 +6,7 @@
 // deployment is claimed: the service is written and passes its round trip, and
 // it is not deployed.
 import { DOC_GROUPS, type DocGroup } from '../../data/nav';
+import SourceLinks from '../SourceLinks.astro';
 
 const group = DOC_GROUPS.find((entry) => entry.id === 'library') as DocGroup;
 
@@ -295,7 +296,7 @@ const deleteCurl = `curl -X DELETE "https://<host>/api/pets/<slug>?reason=<compl
   </section>
 
   <p class="sources">
-    <strong>Source.</strong> {group.source}; <code>evopet_settings.zig</code> and{' '}
+    <strong>Source.</strong> {group.source}<SourceLinks links={group.sourceLinks} />; <code>evopet_settings.zig</code> and{' '}
     <code>settings_view.zig</code> for the auto-upload switch, quoted from its own copy.
   </p>
 </section>

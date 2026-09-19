@@ -1415,6 +1415,87 @@ fn jsonUnescapeString(value: []const u8, output: []u8) ?[]const u8 {
     return output[0..len];
 }
 
+/// Decode a raw JSON string slice (escapes retained) for the bubble title
+/// row. The title pipeline carries raw slices end to end so senders can
+/// embed them verbatim into JSON — which means a prompt typed with quotes
+/// would otherwise paint on screen as `say \"hi\"`. The title row is
+/// single-line, so whitespace/control escapes flatten to spaces rather
+/// than injecting line breaks; unpaired surrogates become U+FFFD.
+/// Returns null when `out` is too small or an escape is malformed — the
+/// caller then falls back to the raw slice (today's rendering).
+fn unescapeTitleForDisplay(raw: []const u8, out: []u8) ?[]const u8 {
+    const hex4 = struct {
+        fn f(t: []const u8, at: usize) ?u16 {
+            if (at + 4 > t.len) return null;
+            var v: u16 = 0;
+            for (t[at..][0..4]) |c| {
+                v <<= 4;
+                v |= switch (c) {
+                    '0'...'9' => c - '0',
+                    'a'...'f' => c - 'a' + 10,
+                    'A'...'F' => c - 'A' + 10,
+                    else => return null,
+                };
+            }
+            return v;
+        }
+    }.f;
+    var i: usize = 0;
+    var w: usize = 0;
+    while (i < raw.len) {
+        var cp: u21 = raw[i];
+        var advance: usize = 1;
+        if (raw[i] == '\\' and i + 1 < raw.len) {
+            switch (raw[i + 1]) {
+                '"' => { cp = '"'; advance = 2; },
+                '\\' => { cp = '\\'; advance = 2; },
+                '/' => { cp = '/'; advance = 2; },
+                'b', 'f', 'n', 'r', 't' => { cp = ' '; advance = 2; },
+                'u' => {
+                    const hi = hex4(raw, i + 2) orelse return null;
+                    advance = 6;
+                    cp = hi;
+                    if (hi >= 0xD800 and hi <= 0xDBFF) {
+                        if (i + 12 <= raw.len and raw[i + 6] == '\\' and raw[i + 7] == 'u') {
+                            if (hex4(raw, i + 8)) |lo| {
+                                if (lo >= 0xDC00 and lo <= 0xDFFF) {
+                                    cp = 0x10000 + (@as(u21, hi - 0xD800) << 10) + (lo - 0xDC00);
+                                    advance = 12;
+                                } else cp = 0xFFFD;
+                            } else cp = 0xFFFD;
+                        } else cp = 0xFFFD;
+                    } else if (hi >= 0xDC00 and hi <= 0xDFFF) {
+                        cp = 0xFFFD;
+                    }
+                },
+                else => return null,
+            }
+            // Single-line title row: no raw control characters.
+            if (cp < 0x20) cp = ' ';
+        }
+        const n: usize = if (cp < 0x80) 1 else if (cp < 0x800) 2 else if (cp < 0x10000) 3 else 4;
+        if (w + n > out.len) return null;
+        if (n == 1) {
+            out[w] = @intCast(cp);
+        } else if (n == 2) {
+            out[w] = @intCast(0xC0 | (cp >> 6));
+            out[w + 1] = @intCast(0x80 | (cp & 0x3F));
+        } else if (n == 3) {
+            out[w] = @intCast(0xE0 | (cp >> 12));
+            out[w + 1] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+            out[w + 2] = @intCast(0x80 | (cp & 0x3F));
+        } else {
+            out[w] = @intCast(0xF0 | (cp >> 18));
+            out[w + 1] = @intCast(0x80 | ((cp >> 12) & 0x3F));
+            out[w + 2] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+            out[w + 3] = @intCast(0x80 | (cp & 0x3F));
+        }
+        w += n;
+        i += advance;
+    }
+    return out[0..w];
+}
+
 fn saveSettings(model: *const Model) void {
     var path_buf: [512]u8 = undefined;
     const path = settingsPath(&path_buf) orelse return;
@@ -1942,30 +2023,27 @@ fn resolveInitialPet(io: std.Io, allocator: std.mem.Allocator, environ_map: *std
                     initial_font_path_len = value.len;
                 }
             }
-            if (hook_server.jsonStringPub(json, "bubbles")) |_| {} else if (std.mem.indexOf(u8, json, "\"bubbles\":false") != null) {
-                initial_bubbles = false;
+            if (hook_server.jsonBoolPub(json, "bubbles")) |v| {
+                initial_bubbles = v;
             }
             // Default-true like `bubbles` above, and for the same reason:
             // a settings file written before this key existed must roll
             // forward into the stack, so only an explicit false opts out.
-            // Note this has to be checked BEFORE the substring above
-            // would match it: "bubbles_per_conversation":false does not
-            // contain "bubbles":false, so the two cannot collide.
-            if (std.mem.indexOf(u8, json, "\"bubbles_per_conversation\":false") != null) {
-                initial_bubbles_per_conversation = false;
+            if (hook_server.jsonBoolPub(json, "bubbles_per_conversation")) |v| {
+                initial_bubbles_per_conversation = v;
             }
-            if (std.mem.indexOf(u8, json, "\"agents_prompted\":true") != null) {
-                initial_agents_prompted = true;
+            if (hook_server.jsonBoolPub(json, "agents_prompted")) |v| {
+                initial_agents_prompted = v;
             }
             // Opposite default from bubbles: the chime is opt-in, so
             // only an explicit true (never a missing key) enables it.
-            if (std.mem.indexOf(u8, json, "\"waiting_sound\":true") != null) {
-                initial_waiting_sound = true;
+            if (hook_server.jsonBoolPub(json, "waiting_sound")) |v| {
+                initial_waiting_sound = v;
             }
             // Opt-in like the sound: only an explicit true hides the
             // Dock icon, a missing key keeps the stock behavior.
-            if (std.mem.indexOf(u8, json, "\"hide_dock\":true") != null) {
-                initial_hide_dock = true;
+            if (hook_server.jsonBoolPub(json, "hide_dock")) |v| {
+                initial_hide_dock = v;
             }
             if (hook_server.jsonNumberPub(json, "pet_x")) |x| {
                 if (hook_server.jsonNumberPub(json, "pet_y")) |y| {
@@ -1974,14 +2052,14 @@ fn resolveInitialPet(io: std.Io, allocator: std.mem.Allocator, environ_map: *std
                 }
             }
             // Opt-in like the sound and the Dock toggle.
-            if (std.mem.indexOf(u8, json, "\"rotate_pets\":true") != null) {
-                initial_rotate_pets = true;
+            if (hook_server.jsonBoolPub(json, "rotate_pets")) |v| {
+                initial_rotate_pets = v;
             }
             if (hook_server.jsonNumberPub(json, "rotation_day")) |v| {
                 if (v >= 0) initial_rotation_day = @intFromFloat(v);
             }
-            if (std.mem.indexOf(u8, json, "\"update_checks\":false") != null) {
-                initial_update_checks = false;
+            if (hook_server.jsonBoolPub(json, "update_checks")) |v| {
+                initial_update_checks = v;
             }
             if (hook_server.jsonNumberPub(json, "last_update_check_ms")) |v| {
                 if (v >= 0) initial_last_update_check_ms = @intFromFloat(v);
@@ -2056,11 +2134,18 @@ fn flockFrameIndex(state: State) usize {
 }
 
 fn flockImageRect(state: State) geometry.RectF {
+    // The flock atlas is packed by registerFlockFrames at the SHEET's cell
+    // size (sheet.width / cols, sheet.height / sheet.rows), not the global
+    // frame_w/frame_h (192x208), which only matches stock sheets. A custom
+    // pet sheet with a different cell size would otherwise sample the wrong
+    // cells — e.g. a running frame labeled "Agent blocked".
+    const cell_w = @as(f32, @floatFromInt(sheet.width / cols));
+    const cell_h = @as(f32, @floatFromInt(sheet.height / sheet.rows));
     return geometry.RectF.init(
-        @as(f32, @floatFromInt(flockFrameIndex(state))) * frame_w,
+        @as(f32, @floatFromInt(flockFrameIndex(state))) * cell_w,
         0,
-        frame_w,
-        frame_h,
+        cell_w,
+        cell_h,
     );
 }
 
@@ -2726,6 +2811,10 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
                 model.auth.setError("Could not start Petdex sign-in");
                 return;
             };
+            // Only now may /callback file a result: a stale or planted
+            // callback arriving with no flow in flight is ignored instead
+            // of poisoning the next real sign-in with a state mismatch.
+            hook_server.auth_armed = true;
             plat.openExternal(url);
         },
         .auth_refresh => {
@@ -2738,6 +2827,7 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
         },
         .auth_sign_out => {
             model.auth.clearSession();
+            hook_server.auth_armed = false;
             model.pet_source = .installed;
             auth_avatar_ready = false;
             model.auth_preview_ready = @splat(false);
@@ -3032,12 +3122,17 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
         .bubble_lifetime_input => |edit| {
             if (editUnsignedText(model.bubble_lifetime_text[0..], &model.bubble_lifetime_text_len, edit, 0, 60)) |value| {
                 model.bubble_lifetime_secs = @floatFromInt(value);
-                // Every settled bubble restarts on the new lifetime; a
-                // busy one still has no deadline to move.
+                // Every bubble restarts on the new lifetime; a busy one gets
+                // a fresh phantom bound rather than being skipped outright,
+                // so lowering the lifetime can still kill a zombie card.
                 const now = fx.wallMs();
                 for (0..model.bubbles_len) |i| {
-                    if (model.bubbles[i].busy) continue;
-                    model.bubble_expires_at_ms[i] = bubbleDeadlineMs(now, model.bubble_lifetime_secs);
+                    model.bubble_expires_at_ms[i] = bubbleExpiryMs(
+                        now,
+                        model.bubble_lifetime_secs,
+                        model.bubbles[i].busy,
+                        model.bubbles[i].title_len > 0,
+                    );
                 }
                 saveSettings(model);
             }
@@ -3380,6 +3475,7 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
                 }
             }
             if (hook_server.auth_mailbox.take()) |callback| {
+                hook_server.auth_armed = false;
                 if (model.auth.phase == .authorizing) {
                     if (!std.mem.eql(u8, callback.stateSlice(), model.auth.oauthState())) {
                         model.auth.setError("Petdex rejected the sign-in callback");
@@ -3701,7 +3797,10 @@ fn bubbleDeadlineMs(now_ms: i64, lifetime_secs: f32) i64 {
 /// with no title row cannot be attributed to one — a background-process id
 /// used as a session key, the blank sentinel, a worker that never reports its
 /// stop — so no terminal phase is coming and it would hold its slot, spinning,
-/// forever. Bound exactly those.
+/// forever. Titled cards are attributable, but a crashed agent (or hooks
+/// removed mid-session) still never sends the terminal phase; without a bound
+/// those spin forever too, and the lifetime setting explicitly skipped busy
+/// cards so the user could not kill them. Bound both.
 const bubble_phantom_busy_secs: f32 = 180;
 
 fn bubblePhantomDeadlineMs(now_ms: i64) i64 {
@@ -3713,11 +3812,16 @@ fn bubbleExpiryMs(now_ms: i64, lifetime_secs: f32, busy: bool, titled: bool) i64
     // Deliberately NOT routed through `bubbleDeadlineMs`: `lifetime_secs` may
     // be 0 ("sticky", never expires) and its clamp caps at 60s, neither of
     // which may apply to this ceiling.
-    return if (titled) -1 else bubblePhantomDeadlineMs(now_ms);
+    _ = titled;
+    return bubblePhantomDeadlineMs(now_ms);
 }
 
-fn bubbleLifetimeExpired(deadline_ms: i64, now_ms: i64, state: State) bool {
-    return state != .waiting and deadline_ms >= 0 and now_ms >= deadline_ms;
+fn bubbleLifetimeExpired(deadline_ms: i64, now_ms: i64) bool {
+    // Keys off the deadline only. A waiting-for-approval card's exemption
+    // rides the bubble's own agent_state (checked by expireBubbles); keying
+    // off the sprite's state here froze every card's deadline while any one
+    // sender left the sprite .waiting.
+    return deadline_ms >= 0 and now_ms >= deadline_ms;
 }
 
 fn bubbleMaxCardWidth(model: *const Model) f32 {
@@ -3740,7 +3844,7 @@ fn bubbleRowCount(model: *const Model, slot: usize) usize {
     const bubble = &model.bubbles[slot];
     const chars_per_line: usize = model.bubble_columns;
     const answer_lines: usize = model.bubble_answer_lines;
-    const title = clipDisplay(bubble.title[0..bubble.title_len], chars_per_line, &bubble_title_scratch[slot], false);
+    const title = clipDisplay(bubbleTitleForDisplay(bubble, slot), chars_per_line, &bubble_title_scratch[slot], false);
     const text = clipDisplay(bubble.text[0..bubble.text_len], chars_per_line * answer_lines, &bubble_text_scratch[slot], true);
     var count: usize = if (title.len > 0) 1 else 0;
     for (splitLines(text, chars_per_line, answer_lines)) |line| {
@@ -3776,7 +3880,7 @@ fn bubbleContentWidth(model: *const Model, slot: usize) f32 {
     const title_font = canvas.textSpanFontId(.{ .text = "", .weight = .bold }, tokens.typography);
     const text_font = canvas.textSpanFontId(.{ .text = "" }, tokens.typography);
 
-    const title = clipDisplay(bubble.title[0..bubble.title_len], chars_per_line, &bubble_title_scratch[slot], false);
+    const title = clipDisplay(bubbleTitleForDisplay(bubble, slot), chars_per_line, &bubble_title_scratch[slot], false);
     var widest = canvas.measureTextWidthForFont(tokens.text_measure, title_font, title, size);
     const text_clipped = clipDisplay(bubble.text[0..bubble.text_len], chars_per_line * answer_lines, &bubble_text_scratch[slot], true);
     for (splitLines(text_clipped, chars_per_line, answer_lines)) |line| {
@@ -4038,6 +4142,17 @@ fn charCount(text: []const u8) usize {
 // single bubble could.
 var bubble_title_scratch: [hook_server.max_bubbles][280]u8 = undefined;
 var bubble_text_scratch: [hook_server.max_bubbles][280]u8 = undefined;
+// Decoded-title staging: the title row paints unescaped text (see
+// unescapeTitleForDisplay). One slot per bubble, sized to the mailbox's
+// title capacity — decoding only ever shrinks.
+var bubble_title_unescaped: [hook_server.max_bubbles][96]u8 = undefined;
+
+/// Title row for display: unescape the raw slice first so `\"` paints as
+/// `"`. Falls back to the raw slice when the title is not escape-clean.
+fn bubbleTitleForDisplay(bubble: *const hook_server.Bubble, slot: usize) []const u8 {
+    const raw = bubble.title[0..bubble.title_len];
+    return unescapeTitleForDisplay(raw, &bubble_title_unescaped[slot]) orelse raw;
+}
 
 /// Clip to `max_chars` on a safe boundary: never mid UTF-8 sequence,
 /// never splitting a JSON escape, preferring the last word boundary
@@ -4421,7 +4536,7 @@ fn expireBubbles(model: *Model, now_ms: i64) bool {
             kept += 1;
             continue;
         }
-        if (bubbleLifetimeExpired(model.bubble_expires_at_ms[i], now_ms, model.state)) {
+        if (bubbleLifetimeExpired(model.bubble_expires_at_ms[i], now_ms)) {
             // Tell the server too: a slot the app stopped drawing must
             // not keep a session alive against the eviction policy.
             hook_server.mailbox.dropBubble(model.bubbles[i].sessionSlice());
@@ -4827,7 +4942,7 @@ fn bubbleCard(ui: *AppUi, model: *const Model, slot: usize) AppUi.Node {
     const newest = slot + 1 == model.bubbles_len;
     const chars_per_line: usize = model.bubble_columns;
     const answer_lines: usize = model.bubble_answer_lines;
-    const title_raw = bubble.title[0..bubble.title_len];
+    const title_raw = bubbleTitleForDisplay(bubble, slot);
     const text_raw = bubble.text[0..bubble.text_len];
     const title_clipped = clipDisplay(title_raw, chars_per_line, &bubble_title_scratch[slot], false);
     const text_clipped = clipDisplay(text_raw, chars_per_line * answer_lines, &bubble_text_scratch[slot], true);
@@ -5601,9 +5716,17 @@ test "a body earns the marker when a human has to act" {
 }
 
 test "flock states use distinct cells in one atlas" {
+    // Pin the rect to the SHEET's cell size, not the global frame_w: a
+    // custom pet sheet with a different cell width must still sample the
+    // right cell.
+    sheet.width = 1600; // 200px cells, not the stock 192
+    sheet.height = 1872; // 208px rows
+    defer sheet = .{};
     for (flock_states, 0..) |state, index| {
         try std.testing.expectEqual(flock_atlas_image_id, flockImageId(state));
-        try std.testing.expectEqual(@as(f32, @floatFromInt(index)) * frame_w, flockImageRect(state).x);
+        try std.testing.expectEqual(@as(f32, @floatFromInt(index)) * 200, flockImageRect(state).x);
+        try std.testing.expectEqual(@as(f32, 200), flockImageRect(state).width);
+        try std.testing.expectEqual(@as(f32, 208), flockImageRect(state).height);
     }
     try std.testing.expect(flock_atlas_image_id != sheet_image_id);
     try std.testing.expect(flock_atlas_image_id != agent_icon_atlas_id);
@@ -5956,8 +6079,9 @@ test "attention does not fire for ordinary busy card, no zombie on expiry or win
     @memset(model.bubbles[0].agent_state[0..], 0);
     try std.testing.expect(!hasPendingAttention(&model));
     // Bubble expiry for non-waiting cards still works; waiting cards never expire on deadline.
-    try std.testing.expect(bubbleLifetimeExpired(7000, 8000, .idle));
-    try std.testing.expect(!bubbleLifetimeExpired(7000, 8000, .waiting));
+    try std.testing.expect(bubbleLifetimeExpired(7000, 8000));
+    try std.testing.expect(!bubbleLifetimeExpired(7000, 6000));
+    try std.testing.expect(!bubbleLifetimeExpired(-1, 8000));
     // Simulating resolution: dropping the bubble clears attention and does not leave a timer.
     model.bubbles_len = 0;
     try std.testing.expect(!hasPendingAttention(&model));
@@ -6102,6 +6226,21 @@ test "custom font path round-trips through settings JSON escaping" {
     try std.testing.expectEqualStrings(path, jsonUnescapeString(escaped, &decoded_buf).?);
 }
 
+test "bubble titles paint decoded, never raw escapes" {
+    var buf: [96]u8 = undefined;
+    // The reported bug: a quoted prompt painted as `say \"hi\"`.
+    try std.testing.expectEqualStrings("say \"hi\"", unescapeTitleForDisplay("say \\\"hi\\\"", &buf).?);
+    try std.testing.expectEqualStrings("a\\b", unescapeTitleForDisplay("a\\\\b", &buf).?);
+    // U+2019 decodes to UTF-8 E2 80 99, not six literal characters.
+    try std.testing.expectEqualStrings("it\xe2\x80\x99s", unescapeTitleForDisplay("it\\u2019s", &buf).?);
+    // Surrogate pair U+1F600 decodes to F0 9F 98 80.
+    try std.testing.expectEqualStrings("\xf0\x9f\x98\x80", unescapeTitleForDisplay("\\uD83D\\uDE00", &buf).?);
+    // Single-line title row: whitespace escapes flatten, never break lines.
+    try std.testing.expectEqualStrings("a b c", unescapeTitleForDisplay("a\\nb\\u0020c", &buf).?);
+    // Plain titles pass through untouched.
+    try std.testing.expectEqualStrings("plain title", unescapeTitleForDisplay("plain title", &buf).?);
+}
+
 test "tap detection separates pats from drags" {
     // Clean click: quick, still.
     try std.testing.expect(isTap(120, 0, 0));
@@ -6130,14 +6269,17 @@ test "bubble lifetime validates and produces a deadline" {
     try std.testing.expectEqual(@as(i64, -1), bubbleDeadlineMs(2000, 0));
     try std.testing.expectEqual(@as(i64, 7000), bubbleDeadlineMs(2000, 5));
     try std.testing.expectEqual(@as(i64, -1), bubbleExpiryMs(2000, 0, false, false));
-    try std.testing.expectEqual(@as(i64, -1), bubbleExpiryMs(2000, 5, true, true));
+    try std.testing.expectEqual(@as(i64, 182_000), bubbleExpiryMs(2000, 5, true, true));
     try std.testing.expectEqual(@as(i64, 7000), bubbleExpiryMs(2000, 5, false, false));
-    // The phantom: an untitled busy card is bounded even when the configured
-    // lifetime is 0 (sticky) or shorter than the ceiling.
+    // The phantom: a busy card is bounded even when the configured
+    // lifetime is 0 (sticky) or shorter than the ceiling — titled or not,
+    // so a crashed agent cannot leave its card spinning forever.
     try std.testing.expectEqual(@as(i64, 182_000), bubbleExpiryMs(2000, 0, true, false));
     try std.testing.expectEqual(@as(i64, 182_000), bubbleExpiryMs(2000, 5, true, false));
-    try std.testing.expect(!bubbleLifetimeExpired(7000, 8000, .waiting));
-    try std.testing.expect(bubbleLifetimeExpired(7000, 8000, .idle));
+    try std.testing.expectEqual(@as(i64, 182_000), bubbleExpiryMs(2000, 5, true, true));
+    try std.testing.expect(bubbleLifetimeExpired(7000, 8000));
+    try std.testing.expect(!bubbleLifetimeExpired(7000, 6000));
+    try std.testing.expect(!bubbleLifetimeExpired(-1, 8000));
 }
 
 /// Seed the model's stack directly, the shape the poll tick would leave.
@@ -6183,12 +6325,15 @@ test "bubbles per conversation defaults on, and only an explicit false opts out"
     // so the test cannot drift into asserting a different rule.
     const optedOut = struct {
         fn f(json: []const u8) bool {
-            return std.mem.indexOf(u8, json, "\"bubbles_per_conversation\":false") != null;
+            return hook_server.jsonBoolPub(json, "bubbles_per_conversation") == false;
         }
     }.f;
     try std.testing.expect(!optedOut(missing));
     try std.testing.expect(optedOut(explicit_false));
     try std.testing.expect(!optedOut(explicit_true));
+    // Pretty-printed settings (`"key": false` with a space) must opt out
+    // too — the old exact-substring probe silently ignored them.
+    try std.testing.expect(optedOut("{ \"bubbles_per_conversation\" : false }"));
 
     // The two keys share a prefix, so the older `bubbles` probe must not
     // read the new key's value as its own. A settings file with the
@@ -6196,7 +6341,7 @@ test "bubbles per conversation defaults on, and only an explicit false opts out"
     // bubble, which is a far worse failure than the one being fixed.
     const bubblesOff = struct {
         fn f(json: []const u8) bool {
-            return std.mem.indexOf(u8, json, "\"bubbles\":false") != null;
+            return hook_server.jsonBoolPub(json, "bubbles") == false;
         }
     }.f;
     try std.testing.expect(!bubblesOff(explicit_false));
@@ -7271,12 +7416,15 @@ test "an unchanged bubble keeps its deadline when another one updates" {
     try std.testing.expectEqual(@as(i64, 15_000), model.bubble_expires_at_ms[1]);
 }
 
-test "a titleless busy card cannot hold a slot forever" {
-    // The zombie card: a pre/post_tool_call event whose session key is not a
-    // conversation (a background-process id, the blank sentinel, a worker that
-    // never reports its stop) opens a card with no title row and NEVER gets a
-    // terminal phase. `busy` therefore stayed true with an immortal deadline
-    // and the spinner outlived every other card in the stack.
+test "a busy card cannot hold a slot forever, titled or not" {
+    // Every busy card gets the 180 s phantom bound, titled or not. The titleless
+    // zombie (a pre/post_tool_call event whose session key is not a
+    // conversation) never gets a terminal phase, and neither does a titled card
+    // whose agent crashed or whose hooks were removed mid-session -- before
+    // this, those kept an immortal lease and the spinner outlived every other
+    // card in the stack. A titled busy card that is genuinely live work keeps
+    // emitting events, and every event restamps the bound, so the deadline
+    // only ever fires after 180 s of agent silence.
     var model: Model = .{};
     // 0 is the sticky "no expiry" lifetime: the setting where the phantom was
     // immortal even though the user had configured a bubble lifetime.
@@ -7288,19 +7436,16 @@ test "a titleless busy card cannot hold a slot forever" {
     const no_deadlines = [_]i64{};
     syncBubbleDeadlines(&model, &no_previous, &no_deadlines, 1_000);
 
-    // The unattributable card gets a bounded lease...
-    try std.testing.expect(model.bubble_expires_at_ms[0] > 1_000);
-    // ...while a titled busy card keeps the immortal lease that means
-    // "genuinely live work" and must not be hidden early.
-    try std.testing.expectEqual(@as(i64, -1), model.bubble_expires_at_ms[1]);
+    // Both the unattributable card and the titled one get a bounded lease.
+    try std.testing.expectEqual(@as(i64, 181_000), model.bubble_expires_at_ms[0]);
+    try std.testing.expectEqual(@as(i64, 181_000), model.bubble_expires_at_ms[1]);
 
     try std.testing.expect(!expireBubbles(&model, 179_000));
     try std.testing.expectEqual(@as(usize, 2), model.bubbles_len);
 
-    // Past the ceiling the phantom is gone and the live card is untouched.
+    // Past the ceiling both cards are gone: neither holds a slot forever.
     try std.testing.expect(expireBubbles(&model, 181_000));
-    try std.testing.expectEqual(@as(usize, 1), model.bubbles_len);
-    try std.testing.expectEqualStrings("20260912_144649_1d38ff98", model.bubbles[0].sessionSlice());
+    try std.testing.expectEqual(@as(usize, 0), model.bubbles_len);
 }
 
 test "a titled busy card still expires when its terminal phase arrives" {

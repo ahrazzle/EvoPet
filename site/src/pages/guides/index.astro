@@ -11,6 +11,7 @@
 // and the library's README.md. Nothing here is a hosted-service claim.
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { GUIDES, LIBRARY_API_DEFAULT } from '../../data/nav';
+import SourceLinks from '../../components/SourceLinks.astro';
 
 /** One guide's metadata, looked up so the card and the section cannot drift. */
 function guide(id: string) {
@@ -295,7 +296,7 @@ GET  ${LIBRARY_API_DEFAULT}/api/manifest       # the public index, approved pets
         </p>
       </div>
 
-      <p class="sources"><strong>Source.</strong> {allProfiles.source}</p>
+      <p class="sources"><strong>Source.</strong> {allProfiles.source}<SourceLinks links={allProfiles.sourceLinks} /></p>
     </section>
 
     <section class="guide" id={floatDesktop.id}>
@@ -369,7 +370,7 @@ GET  ${LIBRARY_API_DEFAULT}/api/manifest       # the public index, approved pets
         </p>
       </div>
 
-      <p class="sources"><strong>Source.</strong> {floatDesktop.source}</p>
+      <p class="sources"><strong>Source.</strong> {floatDesktop.source}<SourceLinks links={floatDesktop.sourceLinks} /></p>
     </section>
 
     <section class="guide" id={readState.id}>
@@ -444,7 +445,7 @@ GET  ${LIBRARY_API_DEFAULT}/api/manifest       # the public index, approved pets
         </p>
       </div>
 
-      <p class="sources"><strong>Source.</strong> {readState.source}</p>
+      <p class="sources"><strong>Source.</strong> {readState.source}<SourceLinks links={readState.sourceLinks} /></p>
     </section>
 
     <nav class="anchor-links" aria-label="Section navigation">

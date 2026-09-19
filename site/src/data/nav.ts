@@ -69,6 +69,18 @@ export interface DocItem {
   label: string;
 }
 
+/** One upstream file, linked at its real URL so a claim about another repo is one click from its evidence. */
+export interface SourceLink {
+  label: string;
+  href: string;
+}
+
+/** A file in the TamaHermes tree, linked at its main-branch path. */
+const tamahermesFile = (path: string): SourceLink => ({
+  label: path,
+  href: `${PET_REPO}/blob/main/${path}`,
+});
+
 export interface DocGroup {
   id: string;
   label: string;
@@ -76,6 +88,8 @@ export interface DocGroup {
   items: DocItem[];
   /** The input file this group was written from, named at the end of the group. */
   source: string;
+  /** Linked upstream files, rendered next to `source` when present. */
+  sourceLinks?: SourceLink[];
 }
 
 export const DOC_GROUPS: DocGroup[] = [
@@ -96,7 +110,8 @@ export const DOC_GROUPS: DocGroup[] = [
       { id: 'paths', label: 'What is kept, and where' },
       { id: 'shell', label: 'The desktop shell' },
     ],
-    source: 'README.hermes.md, hermes/install-hermes.sh',
+    source: 'TamaHermes',
+    sourceLinks: [tamahermesFile('README.hermes.md'), tamahermesFile('hermes/install-hermes.sh')],
   },
   {
     id: 'mechanics',
@@ -147,6 +162,8 @@ export interface GuideRef {
   title: string;
   blurb: string;
   source: string;
+  /** Linked upstream files, rendered next to `source` when present. */
+  sourceLinks?: SourceLink[];
 }
 
 export const GUIDES: GuideRef[] = [
@@ -166,19 +183,22 @@ export const GUIDES: GuideRef[] = [
     id: 'install-across-all-profiles',
     title: 'Install across all profiles',
     blurb: 'One command for the default profile and every named profile on the machine.',
-    source: 'README.hermes.md, hermes/install-all-profiles.sh',
+    source: 'TamaHermes',
+    sourceLinks: [tamahermesFile('README.hermes.md'), tamahermesFile('hermes/install-all-profiles.sh')],
   },
   {
     id: 'float-the-pet-on-the-desktop',
     title: 'Float the pet on the desktop',
     blurb: 'Mirror the pet into the desktop shell, and know what the mirror does not do.',
-    source: 'README.hermes.md, PROVENANCE.md',
+    source: 'TamaHermes',
+    sourceLinks: [tamahermesFile('README.hermes.md'), tamahermesFile('PROVENANCE.md')],
   },
   {
     id: 'read-your-pets-state',
     title: 'Read your pet’s state',
     blurb: 'Where the ledger lives, what `status` reports, and what it will not tell you.',
-    source: 'README.hermes.md, docs/evopet/W1-combined-ledger.md',
+    source: 'TamaHermes',
+    sourceLinks: [tamahermesFile('README.hermes.md'), tamahermesFile('docs/evopet/W1-combined-ledger.md')],
   },
 ];
 

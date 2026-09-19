@@ -374,6 +374,10 @@ pub const AuthMailbox = struct {
 };
 
 pub var auth_mailbox: AuthMailbox = .{};
+/// Armed by the app while an OAuth flow is in flight; /callback only files
+/// the result while armed, so a stale or planted callback cannot poison the
+/// next real sign-in with a state mismatch.
+pub var auth_armed: bool = false;
 
 const valid_states = [_][]const u8{
     "idle",    "running", "running-left", "running-right", "waving",
@@ -672,7 +676,7 @@ fn route(server: *Server, conn: *Conn, method: []const u8, target: []const u8, p
         } else if (queryValue(query, "error", &callback.error_text)) |value| {
             callback.error_len = value.len;
         }
-        auth_mailbox.set(callback);
+        if (auth_armed) auth_mailbox.set(callback);
         if (callback.code_len > 0 and callback.state_len > 0) {
             return respondHtml(conn, 200, "<!doctype html><meta charset=utf-8><title>Petdex</title><style>body{background:#0c0c0f;color:#f5f5f7;font:16px system-ui;display:grid;place-items:center;height:100vh;margin:0}main{text-align:center}h1{font-size:24px}</style><main><h1>Signed in to Petdex</h1><p>You can close this tab and return to the app.</p></main>");
         }
@@ -683,7 +687,10 @@ fn route(server: *Server, conn: *Conn, method: []const u8, target: []const u8, p
         return respond(conn, 200, "{\"ok\":true,\"port\":7777}");
     }
     if (get and std.mem.eql(u8, path, "/whoami")) {
-        const out = std.fmt.bufPrint(&scratch, "{{\"ok\":true,\"pid\":{d},\"parentPid\":null,\"inProcess\":true}}", .{server.pid}) catch return;
+        const out = if (plat.parentProcessId()) |ppid|
+            std.fmt.bufPrint(&scratch, "{{\"ok\":true,\"pid\":{d},\"parentPid\":{d},\"inProcess\":true}}", .{ server.pid, ppid }) catch return
+        else
+            std.fmt.bufPrint(&scratch, "{{\"ok\":true,\"pid\":{d},\"parentPid\":null,\"inProcess\":true}}", .{server.pid}) catch return;
         return respond(conn, 200, out);
     }
     if (get and std.mem.eql(u8, path, "/state")) {
@@ -745,14 +752,20 @@ fn route(server: *Server, conn: *Conn, method: []const u8, target: []const u8, p
         if (!server.rateLimitOk()) return respond(conn, 429, "{\"ok\":false,\"error\":\"rate_limited\"}");
         const text = jsonString(body, "text") orelse
             return respond(conn, 400, "{\"ok\":false,\"error\":\"missing_text\"}");
-        const capped = text[0..@min(text.len, 200)];
+        const capped = clampEscapeBoundary(text, 200);
         const agent = jsonString(body, "agent_source") orelse "";
         const title = jsonString(body, "title") orelse "";
         const origin_app = plat.OriginApplication.fromTermProgram(jsonString(body, "source_app"));
         const source_tty = plat.safeSourceTty(jsonString(body, "source_tty")) orelse "";
         const source_cwd = plat.safeSourceCwd(jsonString(body, "source_cwd")) orelse "";
         const herdr_pane = plat.safeHerdrPaneId(jsonString(body, "herdr_pane_id")) orelse "";
-        const busy = std.mem.indexOf(u8, body, "\"busy\":true") != null;
+        // Parsed as a real field, not a substring: bubble text or a title
+        // containing the literal `"busy":true` must not flip the spinner,
+        // and `"busy": true` with a space must not be missed.
+        const busy: bool = switch (jsonBoolResult(body, "busy")) {
+            .value => |v| v,
+            .missing, .invalid => false,
+        };
         // Canonical conversation metadata wins over raw continuation/session
         // ids. Arbitrary provider keys are normalized to the mailbox's fixed
         // 64-byte key instead of being truncated into possible collisions.
@@ -897,6 +910,16 @@ pub fn jsonNumberPub(body: []const u8, key: []const u8) ?f64 {
     return jsonNumber(body, key);
 }
 
+/// Parses a real `"key":true|false` field (whitespace-tolerant, never a
+/// substring match). Missing keys and non-boolean values both read as null,
+/// so callers keep their default.
+pub fn jsonBoolPub(body: []const u8, key: []const u8) ?bool {
+    return switch (jsonBoolResult(body, key)) {
+        .value => |v| v,
+        .missing, .invalid => null,
+    };
+}
+
 const JsonFieldStart = union(enum) {
     missing,
     invalid,
@@ -977,6 +1000,69 @@ fn scanJsonNumber(body: []const u8, offset: usize) ?usize {
     return i;
 }
 
+/// Offset of the first `"key"` that starts a real field — preceded by `{` or
+/// `,` modulo whitespace — or null. A `"key"` inside a string value must not
+/// shadow the real field (e.g. `"agent_source": "dsh"` typed into a bubble's
+/// description falsely completing the DSH handshake from sender content).
+fn jsonKeyAt(body: []const u8, pat: []const u8) ?usize {
+    var search: usize = 0;
+    while (search < body.len) {
+        const relative = std.mem.indexOf(u8, body[search..], pat) orelse return null;
+        const key_at = search + relative;
+        var before = key_at;
+        while (before > 0 and (body[before - 1] == ' ' or body[before - 1] == '\t' or body[before - 1] == '\r' or body[before - 1] == '\n')) before -= 1;
+        if (before == 0 or body[before - 1] == '{' or body[before - 1] == ',') return key_at;
+        search = key_at + pat.len;
+    }
+    return null;
+}
+
+const JsonBoolResult = union(enum) {
+    missing,
+    invalid,
+    value: bool,
+};
+
+fn jsonBoolResult(body: []const u8, key: []const u8) JsonBoolResult {
+    var pat_buf: [32]u8 = undefined;
+    const pat = std.fmt.bufPrint(&pat_buf, "\"{s}\"", .{key}) catch return .invalid;
+    const key_at = jsonKeyAt(body, pat) orelse return .missing;
+    const after_key = skipJsonWhitespace(body, key_at + pat.len);
+    if (after_key >= body.len or body[after_key] != ':') return .invalid;
+    const value_at = skipJsonWhitespace(body, after_key + 1);
+    for ([_]struct { word: []const u8, value: bool }{ .{ .word = "true", .value = true }, .{ .word = "false", .value = false } }) |candidate| {
+        if (std.mem.startsWith(u8, body[value_at..], candidate.word)) {
+            const after = value_at + candidate.word.len;
+            // A longer identifier like "truex" is not a boolean.
+            if (after < body.len and (std.ascii.isAlphanumeric(body[after]) or body[after] == '_')) return .invalid;
+            return .{ .value = candidate.value };
+        }
+    }
+    return .invalid;
+}
+
+/// Clamp a raw JSON string slice (escapes retained) to `limit` bytes without
+/// splitting an escape: back off to the last complete `\X` / `\uXXXX`
+/// boundary. The slice is escape-validated by jsonString, so `\u` always has
+/// its four hex digits inside the slice.
+fn clampEscapeBoundary(text: []const u8, limit: usize) []const u8 {
+    const cap = @min(text.len, limit);
+    var end: usize = 0;
+    var i: usize = 0;
+    while (i < cap) {
+        if (text[i] == '\\' and i + 1 < text.len) {
+            const esc_len: usize = if (text[i + 1] == 'u') 6 else 2;
+            if (i + esc_len > cap) break;
+            i += esc_len;
+            end = i;
+        } else {
+            i += 1;
+            end = i;
+        }
+    }
+    return text[0..end];
+}
+
 fn jsonNumberResult(body: []const u8, key: []const u8) JsonNumberResult {
     const value_start = switch (jsonFieldStart(body, key)) {
         .missing => return .missing,
@@ -992,7 +1078,7 @@ fn jsonNumberResult(body: []const u8, key: []const u8) JsonNumberResult {
 fn jsonString(body: []const u8, key: []const u8) ?[]const u8 {
     var pat_buf: [32]u8 = undefined;
     const pat = std.fmt.bufPrint(&pat_buf, "\"{s}\"", .{key}) catch return null;
-    const key_at = std.mem.indexOf(u8, body, pat) orelse return null;
+    const key_at = jsonKeyAt(body, pat) orelse return null;
     var i = key_at + pat.len;
     while (i < body.len and (body[i] == ' ' or body[i] == ':')) i += 1;
     if (i >= body.len or body[i] != '"') return null;
@@ -1175,6 +1261,43 @@ test "json string scanner rejects malformed mirror input" {
     try std.testing.expect(jsonString("{\"text\":\"unterminated}", "text") == null);
     try std.testing.expect(jsonString("{\"text\":\"bad\\x\"}", "text") == null);
     try std.testing.expect(jsonString("{\"text\":\"bad\nline\"}", "text") == null);
+}
+
+test "json string scanner ignores field names inside string values" {
+    // An inner `"agent_source": "dsh"` inside a description must not shadow
+    // (or stand in for) the real field: the DSH handshake reads agent_source
+    // from sender-influenced content.
+    const shadowed = "{\"description\": \"say \"agent_source\": \"dsh\" ok\", \"integration_version\": \"0.1.0\"}";
+    try std.testing.expect(jsonString(shadowed, "agent_source") == null);
+    const real = "{\"description\": \"say \\\"agent_source\\\": \\\"dsh\\\" ok\", \"agent_source\": \"codex\", \"integration_version\": \"0.1.0\"}";
+    try std.testing.expectEqualStrings("codex", jsonString(real, "agent_source").?);
+}
+
+test "json bool parses a real field and tolerates whitespace" {
+    const t1 = jsonBoolResult("{\"busy\":true}", "busy");
+    try std.testing.expect(t1 == .value and t1.value);
+    const t2 = jsonBoolResult("{\"busy\": true}", "busy");
+    try std.testing.expect(t2 == .value and t2.value);
+    const f1 = jsonBoolResult("{\"busy\":false}", "busy");
+    try std.testing.expect(f1 == .value and !f1.value);
+    const f2 = jsonBoolResult("{ \"busy\" : false }", "busy");
+    try std.testing.expect(f2 == .value and !f2.value);
+    // Bubble text containing the literal `"busy":true` must not flip the spinner.
+    const shadow = jsonBoolResult("{\"text\":\"set \\\"busy\\\":true now\",\"busy\":false}", "busy");
+    try std.testing.expect(shadow == .value and !shadow.value);
+    try std.testing.expect(jsonBoolResult("{\"text\":\"nothing\"}", "busy") == .missing);
+    try std.testing.expect(jsonBoolResult("{\"busy\":truex}", "busy") == .invalid);
+}
+
+test "text cap never splits a json escape" {
+    try std.testing.expectEqualStrings("ab", clampEscapeBoundary("ab", 200));
+    try std.testing.expectEqualStrings("ab", clampEscapeBoundary("abcdef", 2));
+    // Cut inside \n backs off to the boundary before the backslash.
+    try std.testing.expectEqualStrings("ab", clampEscapeBoundary("ab\\ncdef", 3));
+    try std.testing.expectEqualStrings("ab\\n", clampEscapeBoundary("ab\\ncdef", 4));
+    // Cut inside \uXXXX backs off the whole escape.
+    try std.testing.expectEqualStrings("ab", clampEscapeBoundary("ab\\u2019cdef", 5));
+    try std.testing.expectEqualStrings("ab\\u2019", clampEscapeBoundary("ab\\u2019cdef", 8));
 }
 
 test "Windows AFD readable mask includes normal data and terminal events" {

@@ -11,15 +11,7 @@ import { PET_REPO, REPOS, SHELL_REPO, TOOLCHAIN_REPO } from '../data/nav';
 // either here is how the numbers drifted before.
 import { formatXp, gateReport } from '../data/curve';
 
-const xpTable = [
-  { event: 'task_success', xp: '14', when: 'a turn ends successfully, once per turn' },
-  { event: 'recovery', xp: '6', when: 'a success after a failure in the same turn' },
-  { event: 'task_failure', xp: '5', when: 'a turn fails' },
-  { event: 'review_opened', xp: '5', when: 'a review or critique is opened' },
-  { event: 'prompt_sent', xp: '4', when: 'every prompt you send' },
-  { event: 'care', xp: '3', when: 'you tend the pet yourself' },
-  { event: 'session_start', xp: '2', when: 'an agent session begins' },
-];
+import { XP_EVENTS } from '../data/xp-events';
 
 // The default pet's five forms, with the cumulative XP that opens each one,
 // computed from the curve. The widths are the ramp's visual spacing, not data.
@@ -303,7 +295,7 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
         <div class="card">
           <h3>Actions without a menu</h3>
           <p>
-            Care, feed, clean, play and bed are available as compact floating buttons. Each action
+            Feed, clean and play are available as compact floating buttons. Each action
             writes to the shared ledger, awards the defined XP, updates the pet's metrics, and redraws
             the installed package.
           </p>
@@ -351,11 +343,11 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
             <tr><th scope="col">event</th><th scope="col">XP</th><th scope="col">fires on</th></tr>
           </thead>
           <tbody>
-            {xpTable.map((row) => (
+            {XP_EVENTS.map(({ event, xp, when }) => (
               <tr>
-                <th scope="row"><code>{row.event}</code></th>
-                <td>{row.xp}</td>
-                <td>{row.when}</td>
+                <th scope="row"><code>{event}</code></th>
+                <td>{xp}</td>
+                <td>{when}</td>
               </tr>
             ))}
             <tr>
