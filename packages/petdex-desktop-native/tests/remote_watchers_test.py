@@ -289,5 +289,133 @@ class WatcherOwnershipTests(unittest.TestCase):
                     release.join()
 
 
+class CodexSweepTests(unittest.TestCase):
+    UUID = "00000000-0000-0000-0000-000000000001"
+
+    def write_rollout(self, directory: Path, records: list[dict]) -> Path:
+        path = directory / f"rollout-{self.UUID}.jsonl"
+        path.write_text(
+            "".join(json.dumps(item) + "\n" for item in records), encoding="utf-8"
+        )
+        return path
+
+    def completed_records(self) -> list[dict]:
+        return [
+            {"type": "session_meta", "payload": {"cwd": "/work"}},
+            {"type": "event_msg", "payload": {"type": "task_started", "turn_id": "t1"}},
+            {
+                "type": "event_msg",
+                "payload": {"type": "task_complete", "turn_id": "t1", "last_agent_message": "Done now"},
+            },
+        ]
+
+    def running_records(self) -> list[dict]:
+        return [
+            {"type": "session_meta", "payload": {"cwd": "/work"}},
+            {"type": "event_msg", "payload": {"type": "task_started", "turn_id": "t1"}},
+            {"type": "event_msg", "payload": {"type": "agent_reasoning", "text": "Thinking"}},
+        ]
+
+    def test_sweep_closes_terminal_persisted_card(self) -> None:
+        watcher = load("petdex_codex_sweep_test", "petdex-codex-watch.py")
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_rollout(Path(directory), self.completed_records())
+            event = watcher.terminal_for_persisted_codex_card(
+                self.UUID, {self.UUID: path}, {}
+            )
+            self.assertIsNotNone(event)
+            assert event is not None
+            self.assertEqual("completed", event["status"])
+            self.assertFalse(event["busy"])
+            self.assertEqual(self.UUID, event["session_id"])
+
+    def test_sweep_ignores_running_rollout(self) -> None:
+        watcher = load("petdex_codex_sweep_test", "petdex-codex-watch.py")
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_rollout(Path(directory), self.running_records())
+            self.assertIsNone(
+                watcher.terminal_for_persisted_codex_card(self.UUID, {self.UUID: path}, {})
+            )
+
+    def test_sweep_ignores_unknown_stem(self) -> None:
+        watcher = load("petdex_codex_sweep_test", "petdex-codex-watch.py")
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_rollout(Path(directory), self.completed_records())
+            self.assertIsNone(
+                watcher.terminal_for_persisted_codex_card("someone-elses-card", {self.UUID: path}, {})
+            )
+
+    def test_sweep_marks_swept_only_on_2xx(self) -> None:
+        watcher = load("petdex_codex_sweep_test", "petdex-codex-watch.py")
+        self.assertTrue(watcher.sweep_post_succeeded(200))
+        self.assertTrue(watcher.sweep_post_succeeded(204))
+        self.assertFalse(watcher.sweep_post_succeeded(None))
+        self.assertFalse(watcher.sweep_post_succeeded(400))
+        self.assertFalse(watcher.sweep_post_succeeded(413))
+        self.assertFalse(watcher.sweep_post_succeeded(500))
+
+    def test_hooks_disabled_killswitch(self) -> None:
+        watcher = load("petdex_codex_killswitch_test", "petdex-codex-watch.py")
+        with tempfile.TemporaryDirectory() as directory:
+            killswitch = Path(directory) / "hooks-disabled"
+            watcher.HOOKS_DISABLED = killswitch
+            try:
+                self.assertFalse(watcher.hooks_disabled())
+                killswitch.write_text("", encoding="utf-8")
+                self.assertTrue(watcher.hooks_disabled())
+            finally:
+                watcher.HOOKS_DISABLED = watcher.RUNTIME / "hooks-disabled"
+
+    def test_hermes_hooks_disabled_killswitch(self) -> None:
+        watcher = load("petdex_hermes_killswitch_test", "petdex-hermes-watch.py")
+        with tempfile.TemporaryDirectory() as directory:
+            killswitch = Path(directory) / "hooks-disabled"
+            watcher.HOOKS_DISABLED = killswitch
+            try:
+                self.assertFalse(watcher.hooks_disabled())
+                killswitch.write_text("", encoding="utf-8")
+                self.assertTrue(watcher.hooks_disabled())
+            finally:
+                watcher.HOOKS_DISABLED = watcher.RUNTIME / "hooks-disabled"
+
+    def test_post_returns_http_status(self) -> None:
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        watcher = load("petdex_codex_post_test", "petdex-codex-watch.py")
+
+        class Handler(BaseHTTPRequestHandler):
+            code = 413
+
+            def do_POST(self) -> None:  # noqa: N802
+                length = int(self.headers.get("Content-Length", 0))
+                self.rfile.read(length)
+                self.send_response(Handler.code)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def log_message(self, *args: object) -> None:
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        port = server.server_address[1]
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                token = Path(directory) / "update-token"
+                token.write_text("secret", encoding="utf-8")
+                watcher.TOKEN = token
+                watcher.ENDPOINT = f"http://127.0.0.1:{port}/bubble"
+                try:
+                    self.assertEqual(413, watcher.post({"text": "x" * 9000}))
+                    Handler.code = 200
+                    self.assertEqual(200, watcher.post({"text": "ok"}))
+                finally:
+                    watcher.ENDPOINT = "http://127.0.0.1:7777/bubble"
+        finally:
+            server.shutdown()
+            thread.join()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -30,6 +30,18 @@ PID = RUNTIME / "codex-watch.pid"
 INDEX = CODEX / "session_index.jsonl"
 SESSIONS = CODEX / "sessions"
 ENDPOINT = "http://127.0.0.1:7777/bubble"
+# The killswitch file the hook binary and the opencode plugin check: its
+# presence silences all hook traffic. The watchers honor it too, so toggling
+# hooks off stops remote cards as well.
+HOOKS_DISABLED = RUNTIME / "hooks-disabled"
+# Persisted Petdex cards live here (one <session_id>.json title file per
+# conversation, written by the hook runner on this host). The sweep below only
+# ever closes cards that already exist on disk, so other agents' cards are
+# never touched.
+SESSIONS_DIR = RUNTIME / "sessions"
+# Cap persisted-card sweep posts per discovery tick so a large backlog of
+# stale cards cannot stall the live-event path (each post blocks ~0.5s max).
+SWEEP_POSTS_PER_TICK = 8
 DISCOVERY_SECONDS = 2.0
 FOLLOW_SECONDS = 0.25
 MAX_INDEX_BYTES = 4 * 1024 * 1024
@@ -86,6 +98,14 @@ def compact(value: Any, limit: int) -> str:
 def lease_alive() -> bool:
     try:
         return max(0.0, time.time() - LEASE.stat().st_mtime) <= 10.0
+    except OSError:
+        return False
+
+
+def hooks_disabled() -> bool:
+    """The hooks-disabled killswitch, the same file the hook binary checks."""
+    try:
+        return HOOKS_DISABLED.is_file()
     except OSError:
         return False
 
@@ -431,6 +451,45 @@ def parse_rollout(path: Path, title: str) -> dict[str, Any] | None:
     return event_from_state(path, title, state)
 
 
+def persisted_card_stems(limit: int = 64) -> set[str]:
+    """File stems of persisted Petdex cards (<session_id> for each *.json)."""
+    try:
+        names = sorted(SESSIONS_DIR.iterdir())
+    except OSError:
+        return set()
+    stems: set[str] = set()
+    for path in names:
+        if path.suffix != ".json" or not path.is_file():
+            continue
+        stem = path.stem.strip()
+        if stem:
+            stems.add(stem)
+        if len(stems) >= limit:
+            break
+    return stems
+
+
+def terminal_for_persisted_codex_card(
+    stem: str,
+    catalog: dict[str, Path],
+    titles: dict[str, str],
+) -> dict[str, Any] | None:
+    """Terminal event for a persisted card, if Codex reports it ended.
+
+    Matches the card stem against the rollout catalog's canonical session ids.
+    Returns None when the stem is unknown to Codex — never invent a terminal
+    state for another agent's card — or when the rollout is still live
+    (running, waiting on input, or unparseable).
+    """
+    path = catalog.get(stem)
+    if path is None:
+        return None
+    event = parse_rollout(path, titles.get(stem, ""))
+    if event is None or event.get("status") not in {"completed", "failed"}:
+        return None
+    return event
+
+
 def digest(event: dict[str, Any]) -> str:
     encoded = json.dumps(event, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
@@ -449,13 +508,23 @@ def initial_publishable(event: dict[str, Any], path: Path, now: float | None = N
     return max(0.0, current - modified) <= INITIAL_RUNNING_MAX_AGE_SECONDS
 
 
-def post(event: dict[str, Any]) -> bool:
+def sweep_post_succeeded(status: int | None) -> bool:
+    """A stem counts as swept only when the terminal event was accepted (2xx).
+
+    A 4xx/5xx (or transport failure) leaves the stem unswept so the next tick
+    retries instead of silently dropping the close.
+    """
+    return status is not None and 200 <= status < 300
+
+
+def post(event: dict[str, Any]) -> int | None:
+    """POST an event; returns the HTTP status, or None on transport failure."""
     try:
         token = TOKEN.read_text(encoding="utf-8").strip()
     except OSError:
-        return False
+        return None
     if not token:
-        return False
+        return None
     request = urllib.request.Request(
         ENDPOINT,
         data=json.dumps(event, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
@@ -467,9 +536,11 @@ def post(event: dict[str, Any]) -> bool:
     )
     try:
         with urllib.request.urlopen(request, timeout=0.5) as response:
-            return 200 <= response.status < 300
+            return response.status
+    except urllib.error.HTTPError as error:
+        return error.code
     except Exception:
-        return False
+        return None
 
 
 def snapshot() -> list[dict[str, Any]]:
@@ -531,12 +602,18 @@ def run() -> int:
         return 75
     PID.write_text(str(os.getpid()), encoding="ascii")
     watched: dict[str, dict[str, Any]] = {}
+    swept: set[str] = set()
     paths: dict[str, Path] = {}
     titles: dict[str, str] = {}
     last_discovery = 0.0
 
     try:
         while lease_alive():
+            if hooks_disabled():
+                # The killswitch silences every post; keep the lease and lock
+                # so the watcher resumes where it left off when re-enabled.
+                time.sleep(DISCOVERY_SECONDS)
+                continue
             now = time.monotonic()
             if now - last_discovery >= DISCOVERY_SECONDS:
                 last_discovery = now
@@ -546,6 +623,24 @@ def run() -> int:
                 paths = discovery_paths(catalog, titles, watched)
                 for stale_id in set(watched) - set(paths):
                     watched.pop(stale_id, None)
+                # Persisted-card sweep: a busy card whose rollout already ended
+                # before this watcher started never enters `watched`, so the
+                # transition path below never closes it. Close exactly those
+                # cards Codex reports as terminal — keyed on the canonical
+                # session id — and only those; unknown stems belong to other
+                # agents or aged-out rollouts and are never touched.
+                posted = 0
+                for stem in sorted(persisted_card_stems()):
+                    if posted >= SWEEP_POSTS_PER_TICK:
+                        break
+                    if stem in watched or stem in paths or stem in swept:
+                        continue
+                    terminal = terminal_for_persisted_codex_card(stem, catalog, titles)
+                    if terminal is None:
+                        continue
+                    posted += 1
+                    if sweep_post_succeeded(post(terminal)):
+                        swept.add(stem)
 
             for session_id, path in list(paths.items()):
                 try:
@@ -602,13 +697,19 @@ def run() -> int:
                         previous["delivered_hash"] = event_hash
                         continue
                     previous["visible"] = True
-                if post(event):
+                status = post(event)
+                if status is not None and 200 <= status < 300:
                     previous["delivered_hash"] = event_hash
                     if event.get("status") in {"completed", "failed"}:
                         # The desktop retains terminal cards. The watcher no
                         # longer needs this slot, so another active parent can
                         # enter the bounded follow set on next discovery.
                         previous["visible"] = False
+                elif status == 413:
+                    # Permanently oversized: the server will never accept this
+                    # event, so advance the cursor instead of retrying every
+                    # 0.25s forever and burning the shared rate-limit budget.
+                    previous["delivered_hash"] = event_hash
             time.sleep(FOLLOW_SECONDS)
     finally:
         remove_owned_pid()

@@ -6,6 +6,7 @@
 // went away (the design handoff locks exactly four routes and moves in-page
 // navigation to anchors); the content did not.
 import CopyCommand from '../CopyCommand.astro';
+import SourceLinks from '../SourceLinks.astro';
 import { DOC_GROUPS, LEGACY_SHELL_REPO, type DocGroup } from '../../data/nav';
 
 const group = DOC_GROUPS.find((entry) => entry.id === 'getting-started') as DocGroup;
@@ -300,7 +301,7 @@ const pathTable: [string, string][] = [
   </section>
 
   <p class="sources">
-    <strong>Source.</strong> {group.source}; <code>tamahermes/paths.py</code> and{' '}
+    <strong>Source.</strong> {group.source}<SourceLinks links={group.sourceLinks} />; <code>tamahermes/paths.py</code> and{' '}
     <code>tamahermes/pet_compiler.py</code> for what an install writes.
   </p>
 </section>

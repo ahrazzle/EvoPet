@@ -39,7 +39,7 @@ export interface GateRow {
 export interface CurveRow {
   level: number;
   xp: number;
-  /** Cumulative XP this level costs, measured from the level below it. */
+  /** Marginal XP cost of this level: xp(level) − xp(level − 1). */
   costXp: number;
 }
 

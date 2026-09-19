@@ -1,0 +1,22 @@
+---
+/**
+ * The linked half of a docs/guides source line. `source` in nav.ts stays
+ * prose ("TamaHermes"); `sourceLinks` carries the actual file URLs so a
+ * claim about another repo is one click from its evidence. Renders nothing
+ * when the entry has no links.
+ */
+import type { SourceLink } from '../data/nav';
+
+interface Props {
+  links?: SourceLink[];
+}
+
+const { links } = Astro.props;
+---
+{links?.length ? (
+  <>
+    {' '}({links.map((link, i) => (
+      <span>{i > 0 ? ', ' : ''}<a href={link.href} rel="noopener">{link.label}</a></span>
+    ))})
+  </>
+) : null}
