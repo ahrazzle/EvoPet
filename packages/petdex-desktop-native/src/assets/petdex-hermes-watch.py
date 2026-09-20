@@ -38,6 +38,10 @@ PID = RUNTIME / "hermes-watch.pid"
 ENDPOINT = "http://127.0.0.1:7777/bubble"
 DISCOVERY_SECONDS = 2.0
 MAX_WATCHES = 8
+# The killswitch file the hook binary and the opencode plugin check: its
+# presence silences all hook traffic. This watcher honors it too, so toggling
+# hooks off stops remote Hermes cards as well.
+HOOKS_DISABLED = RUNTIME / "hooks-disabled"
 # Persisted Petdex cards live here (one <session_id>.json title file per
 # conversation, written by the hook runner). The sweep below only ever closes
 # cards that already exist on disk, so other agents' cards are never touched.
@@ -81,6 +85,14 @@ def canonical_key(value: Any) -> str:
 def lease_alive() -> bool:
     try:
         return max(0.0, time.time() - LEASE.stat().st_mtime) <= 10.0
+    except OSError:
+        return False
+
+
+def hooks_disabled() -> bool:
+    """The hooks-disabled killswitch, the same file the hook binary checks."""
+    try:
+        return HOOKS_DISABLED.is_file()
     except OSError:
         return False
 
@@ -319,6 +331,11 @@ def run() -> int:
         swept: set[str] = set()
         try:
             while lease_alive():
+                if hooks_disabled():
+                    # The killswitch silences every post; keep the lease and
+                    # lock so the watcher resumes when hooks are re-enabled.
+                    time.sleep(DISCOVERY_SECONDS)
+                    continue
                 result = snapshot()
                 if result is None:
                     time.sleep(DISCOVERY_SECONDS)

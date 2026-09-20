@@ -6,6 +6,7 @@
 // level's XP by hand, so the table cannot drift from the formula.
 import { DEFAULT_EVOLUTION_GATES, MAX_LEVEL, QUADRATIC_TERM, STAGE_ORDER, TAIL_DIVISOR, curveReport, formatXp, gateReport, xpForLevel } from '../../data/curve';
 import { DOC_GROUPS, type DocGroup } from '../../data/nav';
+import SourceLinks from '../SourceLinks.astro';
 
 const group = DOC_GROUPS.find((entry) => entry.id === 'mechanics') as DocGroup;
 
@@ -15,15 +16,7 @@ const group = DOC_GROUPS.find((entry) => entry.id === 'mechanics') as DocGroup;
 const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
 const refusalSnippet = 'pet.json: evolution gates must strictly increase; 20 follows 40';
 
-const xpEvents: [string, number, string][] = [
-  ['task_success', 14, 'a turn ends successfully, once per turn'],
-  ['recovery', 6, 'a success after a failure in the same turn'],
-  ['task_failure', 5, 'a turn fails'],
-  ['review_opened', 5, 'a review or critique is opened'],
-  ['prompt_sent', 4, 'every prompt you send'],
-  ['care', 3, 'you tend the pet yourself'],
-  ['session_start', 2, 'an agent session begins'],
-];
+import { XP_EVENTS } from '../../data/xp-events';
 
 const statsOnly = ['rest', 'token_usage', 'idle_minute', 'drag'];
 
@@ -34,7 +27,7 @@ const gates = gateReport(DEFAULT_EVOLUTION_GATES);
 
 const refusals = [
   'evolution gate 1000 is outside 1..999',
-  'evolution gates must strictly increase; 10 follows 30',
+  'evolution gates must strictly increase; 20 follows 40',
   'a pet needs at least one evolution gate',
   'at most 4 gates supported (5 forms); got 5',
 ];
@@ -81,7 +74,7 @@ const trackerOwners: [string, string, string, string][] = [
         </thead>
         <tbody>
           {
-            xpEvents.map(([event, xp, when]) => (
+            XP_EVENTS.map(({ event, xp, when }) => (
               <tr>
                 <th scope="row"><code>{event}</code></th>
                 <td class="num">{xp}</td>
@@ -102,7 +95,7 @@ const trackerOwners: [string, string, string, string][] = [
       </table>
     </div>
     <p>
-      A good turn is about <span class="num">{xpEvents[4][1] + xpEvents[0][1]}</span> XP — a prompt
+      A good turn is about <span class="num">{XP_EVENTS[4].xp + XP_EVENTS[0].xp}</span> XP — a prompt
       and a success — and a failing turn about <span class="num">9</span> to{' '}
       <span class="num">11</span>.
     </p>
@@ -455,6 +448,6 @@ const trackerOwners: [string, string, string, string][] = [
   </section>
 
   <p class="sources">
-    <strong>Source.</strong> {group.source}. The defects are the project's own recorded list.
+    <strong>Source.</strong> {group.source}<SourceLinks links={group.sourceLinks} />. The defects are the project's own recorded list.
   </p>
 </section>
