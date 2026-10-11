@@ -269,7 +269,10 @@ jobs:
           ')
           SPRITE_PATH="$HOME/.petdex/pets/ci-pet/spritesheet.$SPRITE_EXT"
           curl -fsSL -o "$SPRITE_PATH" "$SPRITE_URL"
-          printf '{"id":"ci-pet","displayName":"CI Pet","description":"ci","spriteVersionNumber":%s,"spritesheetPath":"spritesheet.%s"}' \
+          # The fixture must carry an evopet block: catalog.hasEvopetBlock
+          # is the capability gate, and a pet without it never presents its
+          # context menu (issue #22).
+          printf '{"id":"ci-pet","displayName":"CI Pet","description":"ci","spriteVersionNumber":%s,"spritesheetPath":"spritesheet.%s","evopet":{"evolutionGates":[11,23,32,45],"maxLevel":999}}' \
             "$SPRITE_VERSION" "$SPRITE_EXT" > ~/.petdex/pets/ci-pet/pet.json
           ls -lh ~/.petdex/pets/ci-pet/
 
@@ -297,12 +300,16 @@ jobs:
           if ($sprite.Scheme -ne "https" -or $sprite.Host -ne "assets.petdex.dev") { throw "untrusted sprite host" }
           $ext = "png"
           Invoke-WebRequest -Uri $sprite.AbsoluteUri -OutFile "$dir\spritesheet.png"
+          # The fixture must carry an evopet block: catalog.hasEvopetBlock
+          # is the capability gate, and a pet without it never presents its
+          # context menu (issue #22).
           [ordered]@{
             id = "ci-pet"
             displayName = "CI Pet"
             description = "ci"
             spriteVersionNumber = [int]$row[0][$fields["spriteVersionNumber"]]
             spritesheetPath = "spritesheet.$ext"
+            evopet = @{ evolutionGates = @(11, 23, 32, 45); maxLevel = 999 }
           } | ConvertTo-Json -Compress | Set-Content -Path "$dir\pet.json" -NoNewline
           Get-ChildItem $dir | Select-Object Name, Length | Format-Table -AutoSize
 
