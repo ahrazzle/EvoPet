@@ -20,9 +20,15 @@ export const TAIL_DIVISOR = 1_000_000_000;
  * both sides so the two ports cannot drift apart.
  */
 export const TOP_XP = 998_019_880;
-export const MANIFEST_KEY = 'evopet';
+export const MANIFEST_KEY = "evopet";
 
-export const STAGE_ORDER = ['egg', 'hatchling', 'child', 'teen', 'adult'] as const;
+export const STAGE_ORDER = [
+  "egg",
+  "hatchling",
+  "child",
+  "teen",
+  "adult",
+] as const;
 
 /** Reaching level 11 → 1,000 XP · 23 → 4,840 · 32 → 9,611 · 45 → 19,367 */
 export const DEFAULT_EVOLUTION_GATES: readonly number[] = [11, 23, 32, 45];
@@ -83,7 +89,8 @@ export function validateGates(gates: readonly number[]): number[] {
   const cleaned: number[] = [];
   for (const raw of gates) {
     const value = Math.trunc(Number(raw));
-    if (Number.isNaN(value)) throw new Error(`evolution gate ${raw} is outside 1..${MAX_LEVEL}`);
+    if (Number.isNaN(value))
+      throw new Error(`evolution gate ${raw} is outside 1..${MAX_LEVEL}`);
     if (value < 1 || value > MAX_LEVEL) {
       throw new Error(`evolution gate ${value} is outside 1..${MAX_LEVEL}`);
     }
@@ -94,7 +101,8 @@ export function validateGates(gates: readonly number[]): number[] {
     }
     cleaned.push(value);
   }
-  if (cleaned.length === 0) throw new Error('a pet needs at least one evolution gate');
+  if (cleaned.length === 0)
+    throw new Error("a pet needs at least one evolution gate");
   if (cleaned.length > STAGE_ORDER.length - 1) {
     throw new Error(
       `at most ${STAGE_ORDER.length - 1} gates supported (${STAGE_ORDER.length} forms); got ${cleaned.length}`,
@@ -111,13 +119,21 @@ export function formsForGates(gates: readonly number[]): string[] {
 }
 
 /** The creator-facing gate table: level, XP to reach it, and the form it opens. */
-export function gateReport(gates: readonly number[] = DEFAULT_EVOLUTION_GATES): GateRow[] {
+export function gateReport(
+  gates: readonly number[] = DEFAULT_EVOLUTION_GATES,
+): GateRow[] {
   const checked = validateGates(gates);
   const forms = formsForGates(checked);
   return checked.map((gate, index) => {
     const xp = xpForLevel(gate);
     const previous = index === 0 ? 0 : xpForLevel(checked[index - 1]);
-    return { gate, xp, from: forms[index], to: forms[index + 1], stepXp: xp - previous };
+    return {
+      gate,
+      xp,
+      from: forms[index],
+      to: forms[index + 1],
+      stepXp: xp - previous,
+    };
   });
 }
 
@@ -132,5 +148,5 @@ export function curveReport(levels: readonly number[]): CurveRow[] {
 
 /** `1,000` — every number on the site is grouped by this, never by eye. */
 export function formatXp(value: number): string {
-  return value.toLocaleString('en-US');
+  return value.toLocaleString("en-US");
 }

@@ -1,32 +1,35 @@
 ---
+import CopyCommand from "../../components/CopyCommand.astro";
+import GettingStarted from "../../components/docs/GettingStarted.astro";
+import LibraryPublishing from "../../components/docs/LibraryPublishing.astro";
+import Mechanics from "../../components/docs/Mechanics.astro";
+import Reference from "../../components/docs/Reference.astro";
+import { DOC_GROUPS } from "../../data/nav";
 // /docs — one page, four groups, anchors within.
 //
 // The design handoff locks the route map at four routes and moves in-document
 // navigation to anchors, so what used to be separate pages is now a sidebar of
 // anchors over the same content. The content itself was recycled from the
 // previous docs pages rather than rewritten.
-import DocsLayout from '../../layouts/DocsLayout.astro';
-import CopyCommand from '../../components/CopyCommand.astro';
-import GettingStarted from '../../components/docs/GettingStarted.astro';
-import Mechanics from '../../components/docs/Mechanics.astro';
-import LibraryPublishing from '../../components/docs/LibraryPublishing.astro';
-import Reference from '../../components/docs/Reference.astro';
-import { DOC_GROUPS } from '../../data/nav';
+import DocsLayout from "../../layouts/DocsLayout.astro";
 
 const sidebar = [
   {
-    label: 'Groups',
-    items: DOC_GROUPS.map((group) => ({ href: `#${group.id}`, label: group.label })),
+    label: "Groups",
+    items: DOC_GROUPS.map((group) => ({
+      href: `#${group.id}`,
+      label: group.label,
+    })),
   },
   {
-    label: 'Jump to',
+    label: "Jump to",
     items: [
-      { href: '#install', label: 'Install' },
-      { href: '#gates', label: 'Evolution gates' },
-      { href: '#trackers', label: 'The five trackers' },
-      { href: '#limitations', label: 'Known limitations' },
-      { href: '#endpoints', label: 'Library endpoints' },
-      { href: '#constants', label: 'Constants' },
+      { href: "#install", label: "Install" },
+      { href: "#gates", label: "Evolution gates" },
+      { href: "#trackers", label: "The five trackers" },
+      { href: "#limitations", label: "Known limitations" },
+      { href: "#endpoints", label: "Library endpoints" },
+      { href: "#constants", label: "Constants" },
     ],
   },
 ];

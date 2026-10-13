@@ -1,22 +1,21 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
+// The gate XP below comes from the ported curve, not from this page: the gate
+// levels are the creator's setting, their cost is the ladder's, and retyping
+// either here is how the numbers drifted before.
+import { formatXp, gateReport } from "../data/curve";
 // The project has two lineages and one upstream original, so `REPOS` carries
 // four links, not one. It is the single source of them (src/data/nav.ts): the
 // header, the hero row and the footer all render the same four. The about
 // section links the lineage repos by name, so it imports the same constants
 // rather than hardcoding URLs.
-import { PET_REPO, REPOS, SHELL_REPO, TOOLCHAIN_REPO } from '../data/nav';
-// The gate XP below comes from the ported curve, not from this page: the gate
-// levels are the creator's setting, their cost is the ladder's, and retyping
-// either here is how the numbers drifted before.
-import { formatXp, gateReport } from '../data/curve';
-
-import { XP_EVENTS } from '../data/xp-events';
+import { PET_REPO, REPOS, SHELL_REPO, TOOLCHAIN_REPO } from "../data/nav";
+import { XP_EVENTS } from "../data/xp-events";
+import BaseLayout from "../layouts/BaseLayout.astro";
 
 // The default pet's five forms, with the cumulative XP that opens each one,
 // computed from the curve. The widths are the ramp's visual spacing, not data.
 const stages = [
-  { name: 'egg', xp: formatXp(0), width: 1, colour: 'var(--stage-egg)' },
+  { name: "egg", xp: formatXp(0), width: 1, colour: "var(--stage-egg)" },
   ...gateReport().map((row) => ({
     name: row.to,
     xp: formatXp(row.xp),

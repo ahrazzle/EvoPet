@@ -1,18 +1,20 @@
 ---
-import { REPOS } from '../data/nav';
+import { REPOS } from "../data/nav";
 
 const path = Astro.url.pathname;
 
 // `startsWith` on a directory prefix, so /library highlights "Library" and
 // /docs highlights "Docs" without a per-page prop.
 function current(href: string): boolean {
-  return href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`);
+  return href === "/"
+    ? path === "/"
+    : path === href || path.startsWith(`${href}/`);
 }
 
 const links = [
-  { href: '/docs', label: 'Docs' },
-  { href: '/guides', label: 'Guides' },
-  { href: '/library', label: 'Library' },
+  { href: "/docs", label: "Docs" },
+  { href: "/guides", label: "Guides" },
+  { href: "/library", label: "Library" },
 ];
 ---
 

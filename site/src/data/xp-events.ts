@@ -12,11 +12,19 @@ export interface XpEventRow {
 }
 
 export const XP_EVENTS: XpEventRow[] = [
-  { event: 'task_success', xp: 14, when: 'a turn ends successfully, once per turn' },
-  { event: 'recovery', xp: 6, when: 'a success after a failure in the same turn' },
-  { event: 'task_failure', xp: 5, when: 'a turn fails' },
-  { event: 'review_opened', xp: 5, when: 'a review or critique is opened' },
-  { event: 'prompt_sent', xp: 4, when: 'every prompt you send' },
-  { event: 'care', xp: 3, when: 'you tend the pet yourself' },
-  { event: 'session_start', xp: 2, when: 'an agent session begins' },
+  {
+    event: "task_success",
+    xp: 14,
+    when: "a turn ends successfully, once per turn",
+  },
+  {
+    event: "recovery",
+    xp: 6,
+    when: "a success after a failure in the same turn",
+  },
+  { event: "task_failure", xp: 5, when: "a turn fails" },
+  { event: "review_opened", xp: 5, when: "a review or critique is opened" },
+  { event: "prompt_sent", xp: 4, when: "every prompt you send" },
+  { event: "care", xp: 3, when: "you tend the pet yourself" },
+  { event: "session_start", xp: 2, when: "an agent session begins" },
 ];

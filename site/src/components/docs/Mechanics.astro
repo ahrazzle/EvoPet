@@ -4,21 +4,32 @@
 // Every number here is computed from the ported curve (src/data/curve.ts),
 // which is a literal port of tamahermes/levels.py. Nothing in this file types a
 // level's XP by hand, so the table cannot drift from the formula.
-import { DEFAULT_EVOLUTION_GATES, MAX_LEVEL, QUADRATIC_TERM, STAGE_ORDER, TAIL_DIVISOR, curveReport, formatXp, gateReport, xpForLevel } from '../../data/curve';
-import { DOC_GROUPS, type DocGroup } from '../../data/nav';
-import SourceLinks from '../SourceLinks.astro';
+import {
+  curveReport,
+  DEFAULT_EVOLUTION_GATES,
+  formatXp,
+  gateReport,
+  MAX_LEVEL,
+  QUADRATIC_TERM,
+  STAGE_ORDER,
+  TAIL_DIVISOR,
+  xpForLevel,
+} from "../../data/curve";
+import { DOC_GROUPS, type DocGroup } from "../../data/nav";
+import SourceLinks from "../SourceLinks.astro";
 
-const group = DOC_GROUPS.find((entry) => entry.id === 'mechanics') as DocGroup;
+const group = DOC_GROUPS.find((entry) => entry.id === "mechanics") as DocGroup;
 
 // Code samples live in the frontmatter and are emitted as string values: in an
 // Astro template a raw `{` starts an expression, so JSON written inline would
 // be parsed as JavaScript instead of printed.
 const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
-const refusalSnippet = 'pet.json: evolution gates must strictly increase; 20 follows 40';
+const refusalSnippet =
+  "pet.json: evolution gates must strictly increase; 20 follows 40";
 
-import { XP_EVENTS } from '../../data/xp-events';
+import { XP_EVENTS } from "../../data/xp-events";
 
-const statsOnly = ['rest', 'token_usage', 'idle_minute', 'drag'];
+const statsOnly = ["rest", "token_usage", "idle_minute", "drag"];
 
 const curve = curveReport([1, 2, 20, 50, 70, 99, 999]);
 const firstStepCost = xpForLevel(2) - xpForLevel(1);
@@ -26,18 +37,43 @@ const lastStepCost = xpForLevel(MAX_LEVEL) - xpForLevel(MAX_LEVEL - 1);
 const gates = gateReport(DEFAULT_EVOLUTION_GATES);
 
 const refusals = [
-  'evolution gate 1000 is outside 1..999',
-  'evolution gates must strictly increase; 20 follows 40',
-  'a pet needs at least one evolution gate',
-  'at most 4 gates supported (5 forms); got 5',
+  "evolution gate 1000 is outside 1..999",
+  "evolution gates must strictly increase; 20 follows 40",
+  "a pet needs at least one evolution gate",
+  "at most 4 gates supported (5 forms); got 5",
 ];
 
 const trackerOwners: [string, string, string, string][] = [
-  ['energy', 'stats.energy', '≤20 critical, ≤45 low, ≥80 full, else ok', 'Full is good. The only tracker that gates behaviour.'],
-  ['satiety', 'totalTokens // 100, else a mix of prompt chars, tool-output chars, runs and token samples', '<35 hungry, ≥70 fed, else ok', 'Full is good: how much work you have fed it.'],
-  ['health', 'stats.health (−4 on failure, +2 recovery, +4 care, +3 rest)', '≤35 weak, else ok', 'Full is good.'],
-  ['bond', 'stats.bond (+1 session, +2 success, +1 recovery, +3 care)', '<25 new, <65 warm, ≥65 attached', 'Full is good.'],
-  ['mess', 'mess + failedRuns×6 + careMistakes×4 + min(24, idleMinutes ÷ 10) + unresolved×3, where unresolved = workRuns − completedRuns − reviews', '<25 clean, <60 dusty, ≥60 messy', 'Inverted: high is bad. See D1 and D2 below.'],
+  [
+    "energy",
+    "stats.energy",
+    "≤20 critical, ≤45 low, ≥80 full, else ok",
+    "Full is good. The only tracker that gates behaviour.",
+  ],
+  [
+    "satiety",
+    "totalTokens // 100, else a mix of prompt chars, tool-output chars, runs and token samples",
+    "<35 hungry, ≥70 fed, else ok",
+    "Full is good: how much work you have fed it.",
+  ],
+  [
+    "health",
+    "stats.health (−4 on failure, +2 recovery, +4 care, +3 rest)",
+    "≤35 weak, else ok",
+    "Full is good.",
+  ],
+  [
+    "bond",
+    "stats.bond (+1 session, +2 success, +1 recovery, +3 care)",
+    "<25 new, <65 warm, ≥65 attached",
+    "Full is good.",
+  ],
+  [
+    "mess",
+    "mess + failedRuns×6 + careMistakes×4 + min(24, idleMinutes ÷ 10) + unresolved×3, where unresolved = workRuns − completedRuns − reviews",
+    "<25 clean, <60 dusty, ≥60 messy",
+    "Inverted: high is bad. See D1 and D2 below.",
+  ],
 ];
 ---
 

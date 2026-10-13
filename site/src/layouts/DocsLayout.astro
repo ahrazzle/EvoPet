@@ -1,6 +1,6 @@
 ---
-import BaseLayout from './BaseLayout.astro';
-import { ROUTES } from '../data/nav';
+import { ROUTES } from "../data/nav";
+import BaseLayout from "./BaseLayout.astro";
 
 export interface SideGroup {
   label: string;
@@ -20,7 +20,9 @@ interface Props {
 }
 
 const { title, description, kicker, groups, currentId, lede } = Astro.props;
-const elsewhere = ROUTES.filter((route) => route.href !== '/' && route.href !== Astro.url.pathname);
+const elsewhere = ROUTES.filter(
+  (route) => route.href !== "/" && route.href !== Astro.url.pathname,
+);
 ---
 
 <BaseLayout title={title} description={description}>

@@ -9,62 +9,89 @@ import {
   STAGE_ORDER,
   TAIL_DIVISOR,
   TOP_XP,
-} from '../../data/curve';
-import { DOC_GROUPS, type DocGroup } from '../../data/nav';
+} from "../../data/curve";
+import { DOC_GROUPS, type DocGroup } from "../../data/nav";
 
-const group = DOC_GROUPS.find((entry) => entry.id === 'reference') as DocGroup;
+const group = DOC_GROUPS.find((entry) => entry.id === "reference") as DocGroup;
 
 const constants: [string, string][] = [
-  ['MAX_LEVEL', String(MAX_LEVEL)],
-  ['QUADRATIC_TERM', String(QUADRATIC_TERM)],
-  ['TAIL_DIVISOR', TAIL_DIVISOR.toLocaleString('en-US')],
-  ['TOP_XP', TOP_XP.toLocaleString('en-US')],
-  ['MANIFEST_KEY', `"${MANIFEST_KEY}"`],
-  ['STAGE_ORDER', `(${STAGE_ORDER.map((stage) => `"${stage}"`).join(', ')})`],
-  ['DEFAULT_EVOLUTION_GATES', `(${DEFAULT_EVOLUTION_GATES.join(', ')})`],
+  ["MAX_LEVEL", String(MAX_LEVEL)],
+  ["QUADRATIC_TERM", String(QUADRATIC_TERM)],
+  ["TAIL_DIVISOR", TAIL_DIVISOR.toLocaleString("en-US")],
+  ["TOP_XP", TOP_XP.toLocaleString("en-US")],
+  ["MANIFEST_KEY", `"${MANIFEST_KEY}"`],
+  ["STAGE_ORDER", `(${STAGE_ORDER.map((stage) => `"${stage}"`).join(", ")})`],
+  ["DEFAULT_EVOLUTION_GATES", `(${DEFAULT_EVOLUTION_GATES.join(", ")})`],
 ];
 
 const functions: [string, string][] = [
   [
-    'xp_for_level(L)',
-    'cumulative XP needed to reach a level; level 1 is 0, the top rung is TOP_XP',
+    "xp_for_level(L)",
+    "cumulative XP needed to reach a level; level 1 is 0, the top rung is TOP_XP",
   ],
-  ['level_for_xp(xp)', 'the level a pet with that much cumulative XP is in (1–999)'],
-  ['level_progress(xp)', 'the level band the bar fills against: floor, ceiling, percent'],
-  ['validate_gates(gates)', 'checks a creator’s gate list and raises ValueError, naming the problem'],
-  ['gates_from_manifest(manifest)', 'the creator’s gates, or the default pet’s when it declares none'],
-  ['forms_for_gates(gates)', 'the positional form names implied by a gate list'],
-  ['thresholds_for_gates(gates)', '{form: the XP it begins at}'],
-  ['ledger_thresholds(gates)', '{stage: the XP that ends it}, with the terminal form absent'],
-  ['stage_for_xp(xp, gates)', 'the form a pet is in at that XP'],
-  ['gate_report(gates)', 'the creator-facing gate table: level, XP, from, to'],
-  ['curve_report(levels)', 'cumulative XP at chosen levels, plus what each level costs'],
+  [
+    "level_for_xp(xp)",
+    "the level a pet with that much cumulative XP is in (1–999)",
+  ],
+  [
+    "level_progress(xp)",
+    "the level band the bar fills against: floor, ceiling, percent",
+  ],
+  [
+    "validate_gates(gates)",
+    "checks a creator’s gate list and raises ValueError, naming the problem",
+  ],
+  [
+    "gates_from_manifest(manifest)",
+    "the creator’s gates, or the default pet’s when it declares none",
+  ],
+  [
+    "forms_for_gates(gates)",
+    "the positional form names implied by a gate list",
+  ],
+  ["thresholds_for_gates(gates)", "{form: the XP it begins at}"],
+  [
+    "ledger_thresholds(gates)",
+    "{stage: the XP that ends it}, with the terminal form absent",
+  ],
+  ["stage_for_xp(xp, gates)", "the form a pet is in at that XP"],
+  ["gate_report(gates)", "the creator-facing gate table: level, XP, from, to"],
+  [
+    "curve_report(levels)",
+    "cumulative XP at chosen levels, plus what each level costs",
+  ],
 ];
 
 const codeMap: [string, string][] = [
   [
-    'tamahermes/levels.py',
-    'the whole contract above: the curve, the gates, the validation, and the reports',
+    "tamahermes/levels.py",
+    "the whole contract above: the curve, the gates, the validation, and the reports",
   ],
   [
-    'tamahermes/state.py',
-    'EVENT_DELTAS — one table holding every XP value and every stat change — plus STAGE_THRESHOLDS, maybe_evolve, the teen and adult branch choosers, and passive rest',
+    "tamahermes/state.py",
+    "EVENT_DELTAS — one table holding every XP value and every stat change — plus STAGE_THRESHOLDS, maybe_evolve, the teen and adult branch choosers, and passive rest",
   ],
   [
-    'tamahermes/visual_state.py',
-    'the bin functions, mess_score, satiety_score, alert_bin, and derive_visual_state',
+    "tamahermes/visual_state.py",
+    "the bin functions, mess_score, satiety_score, alert_bin, and derive_visual_state",
   ],
   [
-    'tamahermes/pet_compiler.py',
-    'draws the atlas: the floating layout, the growth bar, the status strip, the icons',
+    "tamahermes/pet_compiler.py",
+    "draws the atlas: the floating layout, the growth bar, the status strip, the icons",
   ],
-  ['tamahermes/hermes_events.py', 'maps a Hermes hook event onto a pet event'],
+  ["tamahermes/hermes_events.py", "maps a Hermes hook event onto a pet event"],
   [
-    'tamahermes/evopet_drain.py',
-    'the cross-agent drain: absorbs per-profile XP into the combined ledger, consumes spooled foreign turns at turn boundaries, and prunes what it absorbed',
+    "tamahermes/evopet_drain.py",
+    "the cross-agent drain: absorbs per-profile XP into the combined ledger, consumes spooled foreign turns at turn boundaries, and prunes what it absorbed",
   ],
-  ['hermes/install-hermes.sh', 'installs the pet and plugin for one Hermes home'],
-  ['hermes/install-all-profiles.sh', 'the same, for the default profile and every named profile'],
+  [
+    "hermes/install-hermes.sh",
+    "installs the pet and plugin for one Hermes home",
+  ],
+  [
+    "hermes/install-all-profiles.sh",
+    "the same, for the default profile and every named profile",
+  ],
 ];
 ---
 

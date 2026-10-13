@@ -14,7 +14,7 @@ interface Props {
   caption?: string;
 }
 
-const { id, code, label = 'Copy', caption } = Astro.props;
+const { id, code, label = "Copy", caption } = Astro.props;
 ---
 
 <pre id={id} tabindex="0"><code>{code}</code></pre>

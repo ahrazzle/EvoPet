@@ -1,4 +1,6 @@
 ---
+import SourceLinks from "../../components/SourceLinks.astro";
+import { GUIDES, LIBRARY_API_DEFAULT } from "../../data/nav";
 // /guides — the task guides, one card each, one anchored section each.
 //
 // The route is one of the four the design handoff locks, and the header, the
@@ -9,9 +11,7 @@
 // Every command and number below is taken from the project's own files, named
 // at the end of each guide: the pet tree's README.hermes.md and docs/evopet/,
 // and the library's README.md. Nothing here is a hosted-service claim.
-import BaseLayout from '../../layouts/BaseLayout.astro';
-import { GUIDES, LIBRARY_API_DEFAULT } from '../../data/nav';
-import SourceLinks from '../../components/SourceLinks.astro';
+import BaseLayout from "../../layouts/BaseLayout.astro";
 
 /** One guide's metadata, looked up so the card and the section cannot drift. */
 function guide(id: string) {

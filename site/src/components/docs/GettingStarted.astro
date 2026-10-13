@@ -1,15 +1,17 @@
 ---
+import { DOC_GROUPS, type DocGroup, LEGACY_SHELL_REPO } from "../../data/nav";
 // "Getting started" — the install group of /docs.
 //
 // Recycled from the previous /docs/install page, which held this content
 // already: the two installs, the flags, the environment, the paths. The route
 // went away (the design handoff locks exactly four routes and moves in-page
 // navigation to anchors); the content did not.
-import CopyCommand from '../CopyCommand.astro';
-import SourceLinks from '../SourceLinks.astro';
-import { DOC_GROUPS, LEGACY_SHELL_REPO, type DocGroup } from '../../data/nav';
+import CopyCommand from "../CopyCommand.astro";
+import SourceLinks from "../SourceLinks.astro";
 
-const group = DOC_GROUPS.find((entry) => entry.id === 'getting-started') as DocGroup;
+const group = DOC_GROUPS.find(
+  (entry) => entry.id === "getting-started",
+) as DocGroup;
 
 const petInstall = `git clone <the pet tree>      # from a checkout of the pet tree
 cd <the pet tree>
@@ -30,48 +32,75 @@ const desktopMirror = `./hermes/install-hermes.sh --petdex-activate   # close th
 ./hermes/install-all-profiles.sh --petdex-activate`;
 
 const flagTable: [string, string][] = [
-  ['--line LINE_ID', 'which companion line to install. Default: toast.'],
-  ['--machine aurora|pulse', 'which outer shell. Default: aurora.'],
-  ['--form FORM_ID', 'install one exact form, grown or not.'],
-  ['--display-name NAME', 'the name shown for the pet.'],
-  ['--reset', 'start over from a fresh egg.'],
-  ['--shell-hooks', 'print the config.yaml hook block instead of copying the plugin.'],
-  ['--petdex', 'also mirror the pet into the desktop home so it floats (adds it to the rotation).'],
-  ['--petdex-activate', 'with --petdex, also make it the active desktop pet.'],
-  ['--petdex-home PATH', 'the desktop home to use. Default: ~/.petdex.'],
+  ["--line LINE_ID", "which companion line to install. Default: toast."],
+  ["--machine aurora|pulse", "which outer shell. Default: aurora."],
+  ["--form FORM_ID", "install one exact form, grown or not."],
+  ["--display-name NAME", "the name shown for the pet."],
+  ["--reset", "start over from a fresh egg."],
+  [
+    "--shell-hooks",
+    "print the config.yaml hook block instead of copying the plugin.",
+  ],
+  [
+    "--petdex",
+    "also mirror the pet into the desktop home so it floats (adds it to the rotation).",
+  ],
+  ["--petdex-activate", "with --petdex, also make it the active desktop pet."],
+  ["--petdex-home PATH", "the desktop home to use. Default: ~/.petdex."],
 ];
 
 const envTable: [string, string][] = [
   [
-    'HERMES_HOME',
-    'the target Hermes home. Inside a named profile it is <home>/.hermes/profiles/<name>; unset, it is ~/.hermes.',
+    "HERMES_HOME",
+    "the target Hermes home. Inside a named profile it is <home>/.hermes/profiles/<name>; unset, it is ~/.hermes.",
   ],
-  ['TAMAHERMES_HOME', 'overrides HERMES_HOME for the hook script and the plugin.'],
-  ['TAMAHERMES_PETDEX_HOME', 'the desktop home to mirror into. Unset means no desktop mirror.'],
-  ['TAMAHERMES_REPO_ROOT', 'lets the plugin and the hook script import the package without installing it.'],
-  ['TAMAHERMES_PY', 'the interpreter the shell-hook wrapper runs.'],
-  ['TAMAHERMES_SYNC=1', 'run the plugin inline instead of on its worker thread (tests).'],
-  ['TAMAHERMES_LINE / TAMAHERMES_MACHINE', 'pin the companion line and the shell.'],
-  ['TAMAHERMES_CATALOG_DIR', 'a custom rendered catalog directory.'],
+  [
+    "TAMAHERMES_HOME",
+    "overrides HERMES_HOME for the hook script and the plugin.",
+  ],
+  [
+    "TAMAHERMES_PETDEX_HOME",
+    "the desktop home to mirror into. Unset means no desktop mirror.",
+  ],
+  [
+    "TAMAHERMES_REPO_ROOT",
+    "lets the plugin and the hook script import the package without installing it.",
+  ],
+  ["TAMAHERMES_PY", "the interpreter the shell-hook wrapper runs."],
+  [
+    "TAMAHERMES_SYNC=1",
+    "run the plugin inline instead of on its worker thread (tests).",
+  ],
+  [
+    "TAMAHERMES_LINE / TAMAHERMES_MACHINE",
+    "pin the companion line and the shell.",
+  ],
+  ["TAMAHERMES_CATALOG_DIR", "a custom rendered catalog directory."],
 ];
 
 const pathTable: [string, string][] = [
   [
-    '<HERMES_HOME>/pets/tamahermes/pet.json',
-    'the manifest Hermes reads, including the evolution gates',
+    "<HERMES_HOME>/pets/tamahermes/pet.json",
+    "the manifest Hermes reads, including the evolution gates",
   ],
   [
-    '<HERMES_HOME>/pets/tamahermes/spritesheet-<hash>.webp',
-    'the compiled atlas, 8 columns by 9 rows of 192×208 cells',
+    "<HERMES_HOME>/pets/tamahermes/spritesheet-<hash>.webp",
+    "the compiled atlas, 8 columns by 9 rows of 192×208 cells",
   ],
-  ['<HERMES_HOME>/tamahermes/state.json', 'the profile’s growth ledger'],
+  ["<HERMES_HOME>/tamahermes/state.json", "the profile’s growth ledger"],
   [
-    '<HERMES_HOME>/tamahermes/hermes-hook-state.json',
-    'per-turn bookkeeping (turn ids only)',
+    "<HERMES_HOME>/tamahermes/hermes-hook-state.json",
+    "per-turn bookkeeping (turn ids only)",
   ],
-  ['<HERMES_HOME>/plugins/tamahermes/', 'the native plugin the installer copies'],
-  ['~/.evopet/state.json', 'the combined ledger: one pet’s worth of XP from every source'],
-  ['~/.evopet/settings.json', 'the auto-upload switch. See the library docs'],
+  [
+    "<HERMES_HOME>/plugins/tamahermes/",
+    "the native plugin the installer copies",
+  ],
+  [
+    "~/.evopet/state.json",
+    "the combined ledger: one pet’s worth of XP from every source",
+  ],
+  ["~/.evopet/settings.json", "the auto-upload switch. See the library docs"],
 ];
 ---
 
