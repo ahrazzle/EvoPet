@@ -265,7 +265,12 @@ export function initLibrary(): void {
       indexMeta.textContent = `index generated ${generated} · ${anywhere}`;
   };
 
+  let loading = false;
   const load = async () => {
+    if (loading) return;
+    loading = true;
+    if (retry) retry.disabled = true;
+    if (indexMeta) indexMeta.textContent = "";
     show(skeletonList, true);
     show(error, false);
     show(empty, false);
@@ -292,6 +297,9 @@ export function initLibrary(): void {
         errorReason.textContent = `GET ${url} failed: ${message}. Nothing is shown in place of the pets, because nothing was received.`;
       }
       status.textContent = "The library could not be reached.";
+    } finally {
+      loading = false;
+      if (retry) retry.disabled = false;
     }
   };
 

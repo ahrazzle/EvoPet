@@ -45,7 +45,7 @@ export const LIBRARY_PROXIED: boolean =
 
 export function manifestUrl(endpoint: string = LIBRARY_ENDPOINT): string {
   const base = endpoint.replace(/\/+$/, "");
-  return `${base}/api/manifest`;
+  return `${base}${base.endsWith("/api") ? "" : "/api"}/manifest`;
 }
 
 export class ManifestError extends Error {
@@ -60,7 +60,19 @@ export class ManifestError extends Error {
 function isPet(value: unknown): value is ManifestPet {
   if (!value || typeof value !== "object") return false;
   const pet = value as Record<string, unknown>;
-  return typeof pet.slug === "string" && typeof pet.displayName === "string";
+  return (
+    typeof pet.slug === "string" &&
+    pet.slug.length > 0 &&
+    typeof pet.displayName === "string" &&
+    (pet.thumbnailUrl === null || typeof pet.thumbnailUrl === "string") &&
+    typeof pet.capable === "boolean" &&
+    (pet.evopet === null ||
+      (typeof pet.evopet === "object" && !Array.isArray(pet.evopet))) &&
+    typeof pet.petJsonUrl === "string" &&
+    typeof pet.spritesheetUrl === "string" &&
+    typeof pet.version === "string" &&
+    typeof pet.updatedAt === "string"
+  );
 }
 
 /** The index, or a thrown ManifestError naming the URL that failed. */
@@ -73,14 +85,18 @@ export async function fetchManifest(
   try {
     response = await fetch(url, {
       headers: { accept: "application/json" },
-      signal,
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
+        : AbortSignal.timeout(10000),
     });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new ManifestError(
-      reason === "Failed to fetch"
-        ? "the request did not complete — the host did not answer, or it refused a different origin"
-        : reason,
+      error instanceof DOMException && error.name === "TimeoutError"
+        ? "the library did not answer within 10 seconds; please retry"
+        : reason === "Failed to fetch"
+          ? "the request did not complete — the host did not answer, or it refused a different origin"
+          : reason,
       url,
     );
   }
@@ -102,6 +118,10 @@ export async function fetchManifest(
   const candidate = payload as Partial<ManifestPayload> | null;
   if (!candidate || !Array.isArray(candidate.pets)) {
     throw new ManifestError("the response carried no pets array", url);
+  }
+
+  if (!candidate.pets.every(isPet)) {
+    throw new ManifestError("the index contains an incomplete pet record", url);
   }
 
   return {
@@ -127,7 +147,10 @@ export function declaredGates(pet: ManifestPet): number[] {
   if (!block || typeof block !== "object") return [];
   const raw = (block as Record<string, unknown>).evolutionGates;
   if (!Array.isArray(raw)) return [];
-  return raw.filter((value): value is number => typeof value === "number");
+  return raw.filter(
+    (value): value is number =>
+      typeof value === "number" && Number.isFinite(value),
+  );
 }
 
 /** `12 pets · 3 evolving` — counted from the payload, never typed in. */
