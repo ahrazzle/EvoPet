@@ -43,13 +43,28 @@ jobs:
           # credentials, so we never run a non-main branch here.
           ref: main
 
+      - name: Check required configuration
+        id: config
+        shell: bash
+        env:
+          MODE: ${{ github.event.inputs.mode || 'apply' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: bash scripts/check-manifest-config.sh
+
       - name: Setup Bun
+        if: steps.config.outputs.skip != 'true'
         uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
+        if: steps.config.outputs.skip != 'true'
         run: bun install --frozen-lockfile
 
       - name: Publish snapshots
+        if: steps.config.outputs.skip != 'true'
         # MODE is validated to check|apply by the script; the choice input
         # already constrains it, and passing via env (not interpolation)
         # avoids any shell-injection surface.
