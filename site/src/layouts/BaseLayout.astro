@@ -1,7 +1,7 @@
 ---
-import SiteHeader from '../components/SiteHeader.astro';
-import SiteFooter from '../components/SiteFooter.astro';
-import '../styles/global.css';
+import SiteFooter from "../components/SiteFooter.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import "../styles/global.css";
 
 interface Props {
   title: string;
@@ -12,12 +12,23 @@ interface Props {
   image?: string;
 }
 
-const { title, description, suffix = true, image = '/pet-cell-idle-4x.png' } = Astro.props;
+const {
+  title,
+  description,
+  suffix = true,
+  image = "/pet-cell-idle-4x.png",
+} = Astro.props;
 
-const siteName = 'EvoPet';
+const siteName = "EvoPet";
 const fullTitle = suffix ? `${title} · ${siteName}` : title;
-const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://www.evopet.askaconsult.com');
-const ogImage = new URL(image, Astro.site ?? 'https://www.evopet.askaconsult.com');
+const canonical = new URL(
+  Astro.url.pathname,
+  Astro.site ?? "https://www.evopet.askaconsult.com",
+);
+const ogImage = new URL(
+  image,
+  Astro.site ?? "https://www.evopet.askaconsult.com",
+);
 ---
 
 <!doctype html>

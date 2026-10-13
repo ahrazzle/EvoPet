@@ -1,11 +1,12 @@
 ---
-import BaseLayout from '../../layouts/BaseLayout.astro';
-import { LIBRARY_API_DEFAULT } from '../../data/nav';
+import { LIBRARY_API_DEFAULT } from "../../data/nav";
+import BaseLayout from "../../layouts/BaseLayout.astro";
 
 // The endpoint is a public URL, baked in at build time — never a secret, and
 // never read from anything the browser has to authenticate with.
 const endpoint =
-  (import.meta.env.PUBLIC_EVOPET_LIBRARY_ENDPOINT as string | undefined) || LIBRARY_API_DEFAULT;
+  (import.meta.env.PUBLIC_EVOPET_LIBRARY_ENDPOINT as string | undefined) ||
+  LIBRARY_API_DEFAULT;
 const skeletons = [0, 1, 2, 3, 4, 5];
 ---
 

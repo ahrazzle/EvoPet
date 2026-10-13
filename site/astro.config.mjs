@@ -17,22 +17,21 @@
 // development convenience only: the library service sends no CORS headers, so a
 // deployed site must either live on the same origin as the service or the
 // service must be given an allowlist. See README.md, "Talking to the library".
-const localProxy = process.env.EVOPET_LIBRARY_LOCAL_PROXY === '1';
-const libraryBase = (process.env.EVOPET_LIBRARY_API || 'https://evopet.askaconsult.com').replace(
-  /\/+$/,
-  '',
-);
-const apiTarget = process.env.EVOPET_LIBRARY_API || 'http://127.0.0.1:4350';
-const libraryEndpoint = localProxy ? '/api' : libraryBase;
+const localProxy = process.env.EVOPET_LIBRARY_LOCAL_PROXY === "1";
+const libraryBase = (
+  process.env.EVOPET_LIBRARY_API || "https://evopet.askaconsult.com"
+).replace(/\/+$/, "");
+const apiTarget = process.env.EVOPET_LIBRARY_API || "http://127.0.0.1:4350";
+const libraryEndpoint = localProxy ? "/api" : libraryBase;
 
 /** @type {import('astro').AstroUserConfig} */
 export default {
-  output: 'static',
-  site: process.env.EVOPET_SITE_URL || 'https://www.evopet.askaconsult.com',
-  trailingSlash: 'never',
+  output: "static",
+  site: process.env.EVOPET_SITE_URL || "https://www.evopet.askaconsult.com",
+  trailingSlash: "never",
   compressHTML: true,
   build: {
-    inlineStylesheets: 'auto',
+    inlineStylesheets: "auto",
   },
   vite: {
     define: {
@@ -40,12 +39,13 @@ export default {
       __EVOPET_LIBRARY_PROXIED__: JSON.stringify(localProxy),
       // Same value under the Astro-public env name, so frontmatter and client
       // modules can both read it without a second source of truth.
-      'import.meta.env.PUBLIC_EVOPET_LIBRARY_ENDPOINT': JSON.stringify(libraryEndpoint),
+      "import.meta.env.PUBLIC_EVOPET_LIBRARY_ENDPOINT":
+        JSON.stringify(libraryEndpoint),
     },
     server: localProxy
       ? {
           proxy: {
-            '/api': {
+            "/api": {
               target: apiTarget,
               changeOrigin: true,
             },

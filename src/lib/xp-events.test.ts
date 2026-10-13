@@ -25,7 +25,9 @@ describe("XP_EVENTS pins the TamaHermes EVENT_DELTAS values", () => {
   ];
 
   it("has exactly the seven documented events in order", () => {
-    expect(XP_EVENTS.map((row) => row.event)).toEqual(expected.map(([event]) => event));
+    expect(XP_EVENTS.map((row) => row.event)).toEqual(
+      expected.map(([event]) => event),
+    );
   });
 
   it("matches the documented XP values", () => {
