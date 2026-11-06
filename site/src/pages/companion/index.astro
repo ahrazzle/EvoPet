@@ -1,0 +1,55 @@
+---
+const manifestExample = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
+
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+<BaseLayout title="Companion workbench" description="Explore EvoPet's real progression curve or inspect a local ledger snapshot. No account, upload, or cloud keys.">
+  <div class="wrap companion" data-companion>
+    <section class="workbench-intro">
+      <p class="eyebrow">One companion. A lifetime of work.</p>
+      <h1>Meet your next level.</h1>
+      <p class="lede">See how real turns become growth. Explore the ladder, plan your pet’s evolution, or read a snapshot of the companion you already have.</p>
+      <p class="local-note"><span aria-hidden="true">●</span> Runs in your browser · no account · no upload</p>
+    </section>
+    <noscript><div class="note">This workbench needs JavaScript. <a href="/docs#ladder">Read the progression reference</a> for the same curve and gate values.</div></noscript>
+    <div class="workbench-layout">
+      <section class="companion-stage" aria-label="Companion progression">
+        <div class="stage-top"><span class="mode-pill" data-mode>Sandbox preview</span><span class="mono-label">EvoPet / 001</span></div>
+        <div class="pet-scene"><div class="pet-orbit" aria-hidden="true"></div><img src="/pet-cell-idle-4x.png" width="768" height="416" alt="EvoPet idle sprite; artwork stays the same while you explore progression." /><span class="scene-caption">Original idle artwork · stage art is not simulated</span></div>
+        <div class="pet-heading"><div><p class="eyebrow" data-stage>Egg</p><h2>One pet. Still becoming.</h2></div><div class="level-medallion"><span>LEVEL</span><strong data-level>1</strong></div></div>
+        <div class="xp-label"><span data-xp>0 total XP</span><span data-level-progress>0 / 10 to next level</span></div>
+        <progress data-progress max="100" value="0" aria-label="Progress toward next level"></progress>
+        <p class="next-evolution" data-next>1,000 XP until hatchling</p>
+        <ol class="evolution-track" data-track aria-label="Evolution milestones"></ol>
+        <p class="snapshot-note" data-snapshot-note hidden>Read-only snapshot. Changing the sandbox never changes your installed pet.</p>
+      </section>
+      <div class="workbench-controls">
+        <section class="workbench-card" aria-labelledby="grow-title">
+          <p class="eyebrow">01 / Try the rhythm</p><h2 id="grow-title">Small turns. Lasting growth.</h2>
+          <p>A completed turn adds 18 XP: a prompt (4) and a success (14). A failed turn adds 9. Tool calls add no extra XP.</p>
+          <div class="workbench-actions"><button type="button" class="button button--primary" data-turn="success">Complete a turn <span>+18 XP</span></button><button type="button" class="button" data-turn="failure">A turn fails <span>+9 XP</span></button></div>
+          <label for="preview-xp">Explore cumulative XP</label><div class="input-action"><input id="preview-xp" data-xp-input type="number" min="0" max="9007199254740991" step="1" value="0" /><button class="button" type="button" data-set-xp>Preview</button></div>
+          <div class="workbench-actions"><button class="text-button" type="button" data-jump>Jump to next evolution</button><button class="text-button" type="button" data-reset>Reset sandbox</button></div>
+        </section>
+        <section class="workbench-card" aria-labelledby="gates-title">
+          <p class="eyebrow">02 / Shape the journey</p><h2 id="gates-title">Choose when it changes.</h2><p>The ladder is fixed. Creators choose one to four evolution levels; each gate opens the next form.</p>
+          <label for="evolution-gates">Evolution gate levels</label><div class="input-action"><input id="evolution-gates" data-gates value="11, 23, 32, 45" aria-describedby="gate-help" /><button type="button" class="button" data-apply-gates>Apply</button></div><p id="gate-help" class="field-help">Whole levels, in increasing order, from 1 to 999.</p>
+          <pre class="manifest-preview"><code data-manifest>{manifestExample}</code></pre><button type="button" class="text-button" data-export>Download manifest fragment</button>
+        </section>
+      </div>
+    </div>
+    <section class="workbench-card snapshot-card" aria-labelledby="snapshot-title">
+      <div><p class="eyebrow">03 / Bring your own progress</p><h2 id="snapshot-title">A window into your local ledger.</h2><p>Choose a copy of <code>~/.evopet/state.json</code>. The workbench reads supported numbers in memory, never uploads the file, and discards profile names, paths and other metadata. Nothing is saved when you leave.</p><p class="field-help">Combined ledger v1 · 999-level curve · maximum 4 MiB. Older 99-level ledgers are refused explicitly.</p></div>
+      <div><label class="file-label" for="ledger-file">Open a ledger snapshot</label><input id="ledger-file" data-file type="file" accept="application/json,.json" /><button class="text-button" type="button" data-return hidden>Return to sandbox and forget snapshot</button><div data-snapshot-details></div></div>
+    </section>
+    <p class="workbench-status" role="status" aria-live="polite" data-status>Sandbox ready. Your installed companion is unchanged.</p>
+    <div class="note"><span class="note-title">The workbench and your companion</span><p>This is a progression explorer and snapshot reader. Agent hooks feed your real pet through its local ledger; browser buttons only change this sandbox. <a href="/docs#install">Set up the real companion</a> or <a href="/docs#mechanics">read the mechanics</a>.</p></div>
+  </div>
+</BaseLayout>
+<script>
+import { initCompanion } from '../../scripts/companion';
+initCompanion();
+</script>
+<style>
+.companion{padding-bottom:64px}.workbench-intro{max-width:800px;padding:64px 0 40px}.workbench-intro h1{font-size:clamp(2.5rem,6vw,4.6rem);line-height:1.05;margin:12px 0 20px}.local-note{font-size:.82rem;color:var(--accent-mint,#7be495)}.local-note span{font-size:.6rem;margin-right:8px}.workbench-layout{display:grid;grid-template-columns:1.05fr 1fr;gap:24px;align-items:start}.companion-stage,.workbench-card{border:1px solid var(--border,#4a3c78);border-radius:20px;background:var(--surface,#1e1836);padding:28px}.companion-stage{position:sticky;top:24px;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,#32234e 0%,#1e1836 65%)}.stage-top,.pet-heading,.xp-label{display:flex;justify-content:space-between;align-items:center;gap:12px}.mode-pill{font-size:.72rem;border:1px solid #756199;border-radius:99px;padding:6px 12px;color:#d8c7f5}.stage-top .mono-label{font-size:.65rem}.pet-scene{position:relative;display:grid;place-items:center;height:260px}.pet-scene img{width:100%;height:auto;max-width:480px;image-rendering:pixelated;z-index:1}.pet-orbit{position:absolute;width:210px;height:210px;border:1px solid #77619166;border-radius:50%;box-shadow:0 0 0 30px #7761910a,0 0 0 60px #77619108}.scene-caption{position:absolute;bottom:6px;font-size:.65rem;color:#b5a7cd;text-align:center}.pet-heading h2{font-size:1.5rem;margin:4px 0 24px}.pet-heading .eyebrow{text-transform:capitalize;margin:16px 0 4px}.level-medallion{text-align:center;min-width:70px}.level-medallion span{display:block;font-size:.6rem;letter-spacing:.15em;color:#c9bde4}.level-medallion strong{font-size:2.6rem;line-height:1.2}.xp-label{font-size:.72rem;color:#c9bde4;margin-bottom:10px}progress{display:block;width:100%;height:10px;border:0;border-radius:99px;overflow:hidden;background:#44365f;accent-color:#7be495}progress::-webkit-progress-bar{background:#44365f}progress::-webkit-progress-value{background:#7be495;border-radius:99px}.next-evolution{font-size:.85rem;color:#dff8b5;margin:14px 0 24px}.evolution-track{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.evolution-track li{font-size:.62rem;color:#b5a7cd;border-top:2px solid #534466;padding-top:10px}.evolution-track li.reached{border-color:#7be495;color:#dff8b5}.evolution-track strong,.evolution-track span{display:block}.evolution-track span{margin-top:4px}.workbench-controls{display:grid;gap:20px}.workbench-card h2{font-size:1.4rem;margin:8px 0 12px}.workbench-card p{font-size:.9rem;line-height:1.65;color:#c9bde4}.workbench-actions{display:flex;flex-wrap:wrap;gap:12px;margin:18px 0}.workbench-actions .button{font-size:.8rem;display:flex;flex-direction:column;gap:3px}.workbench-actions .button span{font-size:.65rem;opacity:.75}.companion label{display:block;font-size:.8rem;font-weight:600;margin:20px 0 8px}.input-action{display:flex;gap:10px}.input-action input{min-width:0;width:100%;padding:12px;border:1px solid #6f5c91;border-radius:9px;background:#141026;color:#fff6ee;font:inherit}.input-action .button{white-space:nowrap;font-size:.8rem}.text-button{appearance:none;background:none;border:0;padding:4px 0;color:#f1b38f;text-align:left;font:inherit;font-size:.78rem;text-decoration:underline;text-underline-offset:4px;cursor:pointer}.companion .field-help{font-size:.7rem;line-height:1.5;margin-top:8px;color:#b5a7cd}.manifest-preview{font-size:.72rem;white-space:pre-wrap;overflow-wrap:anywhere;padding:14px;margin:16px 0;background:#141026;border-radius:9px}.snapshot-card{margin-top:24px;display:grid;grid-template-columns:1.1fr 1fr;gap:40px}.snapshot-card h2{margin-bottom:12px}.snapshot-card input[type=file]{max-width:100%;font-size:.75rem;color:#c9bde4}.snapshot-card input::file-selector-button{border:1px solid #78658f;border-radius:8px;background:#332647;color:#fff6ee;padding:10px;margin-right:12px;cursor:pointer}.workbench-status{min-height:28px;font-size:.85rem;color:#dff8b5;margin:24px 0}.workbench-status[data-error=true]{color:#ffb8b8}.snapshot-note{font-size:.75rem;color:#c9bde4;margin:20px 0 0}.snapshot-metrics{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}.snapshot-metrics span{font-size:.72rem;background:#332647;padding:6px 10px;border-radius:7px}.companion button:focus-visible,.companion input:focus-visible{outline:3px solid #7be495;outline-offset:4px}@media(max-width:850px){.workbench-layout{grid-template-columns:1fr}.companion-stage{position:relative;top:auto}.snapshot-card{grid-template-columns:1fr;gap:8px}.pet-scene{height:240px}}@media(max-width:480px){.companion-stage,.workbench-card{padding:20px}.workbench-intro{padding:40px 0 24px}.xp-label{align-items:start;flex-direction:column;gap:4px}.evolution-track{gap:5px}.evolution-track li{font-size:.57rem}.input-action{gap:6px}.input-action .button{padding:10px}.stage-top .mono-label{display:none}}
+</style>

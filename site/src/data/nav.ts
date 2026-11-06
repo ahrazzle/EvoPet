@@ -2,8 +2,8 @@
 // default are written down. Header, footer, docs, guides and library all read
 // from here, so a link cannot be added in one place and forgotten in another.
 //
-// The route map is locked at four routes with no trailing slash (design
-// handoff §1). Everything inside a route is an in-page anchor, which is why
+// Documentation uses in-page anchors; the companion workbench has its own route.
+// Everything inside a documentation route is an in-page anchor, which is why
 // DOC_GROUPS and GUIDES carry `id`s rather than page slugs.
 //
 // The repository buttons are locked to four exact labels and destinations
@@ -64,6 +64,7 @@ export interface RouteRef {
 
 export const ROUTES: RouteRef[] = [
   { href: "/", label: "Home" },
+  { href: "/companion", label: "Companion" },
   { href: "/docs", label: "Docs" },
   { href: "/guides", label: "Guides" },
   { href: "/library", label: "Library" },

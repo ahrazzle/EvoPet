@@ -37,6 +37,18 @@ this site holds no key. See `.env.example`.
 | `EVOPET_LIBRARY_API` | base URL of the library service. A separate value from the site origin even though it defaults to the same decided host. |
 | `EVOPET_LIBRARY_LOCAL_PROXY=1` | development only: fetch same-origin `/api/...` and let the dev server proxy it to `EVOPET_LIBRARY_API`. |
 
+## Companion workbench
+
+`/companion` runs without a library service or cloud keys. Its sandbox uses the
+same curve and gate validation as the reference pages. It can inspect a user-selected
+combined-ledger JSON snapshot (v1, 999-level curve, at most 4 MiB), selecting active
+pet XP where buckets exist. Only supported numeric fields and anonymous aggregate
+source totals survive parsing; the file is never uploaded or persisted. Snapshot
+mode is read-only and distinct from sandbox turns. The artwork remains the shipped
+idle cell rather than implying stage atlases are present.
+
+Run domain checks with `bun test site/tests/companion.test.ts` from the repo root.
+
 ## Design tokens
 
 `src/styles/global.css` holds one palette (indigo and plum surfaces, tangerine

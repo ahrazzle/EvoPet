@@ -50,8 +50,8 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
         {/* §5: two CTAs (the five-button row was the hero's main defect), then
             the four repository links on their own rule below. */}
         <div class="hero-actions">
-          <a class="button button--primary" href="/docs#install">Get started</a>
-          <a class="button" href="/docs">Browse the docs</a>
+          <a class="button button--primary" href="/companion">Meet your companion</a>
+          <a class="button" href="/docs#install">Install the pet</a>
         </div>
         <nav class="repo-links" aria-label="Repositories">
           <span class="mono-label">Source</span>
@@ -283,31 +283,13 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
     </section>
 
     <section class="section tint--sky">
-      <h2>A quiet HUD that stays live</h2>
-      <p class="prose">
-        The macOS desktop companion keeps a small floating panel beside the pet. Its XP bar measures
-        progress inside the current level, and the level number is derived from that same XP value, so
-        the two cannot drift after a turn or care action. The panel refreshes when the ledger changes;
-        restarting the app is not required.
-      </p>
-      <div class="grid">
-        <div class="card">
-          <h3>Actions without a menu</h3>
-          <p>
-            Feed, clean and play are available as compact floating buttons. Each action
-            writes to the shared ledger, awards the defined XP, updates the pet's metrics, and redraws
-            the installed package.
-          </p>
-        </div>
-        <div class="card">
-          <h3>Readable at a glance</h3>
-          <p>
-            The panel groups the relevant state in one restrained grid: health, energy, mood, bond,
-            satiety, mess, focus, resilience, restlessness, alert state, level and XP progress. It is
-            information-dense, not screen-filling.
-          </p>
-        </div>
-      </div>
+      <h2>A little room to see the journey</h2>
+      <p class="prose">The companion workbench makes the real XP ladder tangible in your browser.
+        Explore completed and failed turns, choose evolution gates, or open a local ledger snapshot
+        to read your pet’s progress. No account or cloud keys are required.</p>
+      <p class="prose">The sandbox is separate from your installed pet. A snapshot stays in this tab;
+        it is never uploaded, and preview actions never write to your ledger.</p>
+      <a class="button" href="/companion">Open the companion workbench</a>
     </section>
 
     <section class="section tint--rose">
@@ -370,10 +352,10 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
         Right‑click for Clean, Feed and Play. Each writes to the same ledger every agent feeds.
       </p>
       <div class="note note--warn">
-        <span class="note-title">Planned, not shipped yet</span>
+        <span class="note-title">Available in the source build</span>
         <p>
-          A separate floating status panel, more care actions, and a package reload without restarting the shell are planned.
-          Do not treat them as available.
+          The source build adds a read-only Progress window opened from the pet menu, with level, XP,
+          evolution progress and care controls. A distributable notarized macOS release is not available yet.
         </p>
       </div>
     </section>
@@ -388,7 +370,7 @@ const gateSnippet = '"evopet": { "evolutionGates": [11, 23, 32, 45] }';
         <li>The pet's mechanics, the combined ledger and the drain that fills it are in the pet tree.</li>
         <li>
           The desktop shell ships as a local build on macOS. The in‑cell HUD (growth bar and level
-          in the sprite) is the shipped surface. A separate floating status panel is planned.
+          in the sprite) is the shipped surface. The source build also provides a Progress window through the pet menu.
         </li>
         <li>
           The library service is written and passes its own end-to-end round trip, but it is not

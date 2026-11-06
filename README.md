@@ -78,29 +78,49 @@ nothing is double-counted. Growth is read at turn boundaries only, so a turn in 
 is worth a turn in another. The combined ledger is seeded by force-combining the existing
 per-profile XP, so switching to it loses no progress.
 
-Only numbers are stored: XP, counters, stats and traits. Never your prompts, never tool
-output, never a file path. That restriction is enforced by the combined ledger's own test,
-not by convention.
+Growth stays local. The ledger keeps XP, counters, stats and traits alongside operational
+cursors, attribution and mirror configuration. The transient hook queue can contain session
+titles and source paths before it is consumed. The progress views expose an allowlisted
+projection, and the drain tests check that raw prompt, title and source-path text is not
+copied into progression records. See the [data boundaries](docs/companion-development.md#privacy-and-release-boundaries).
+
+## Use the companion
+
+The static site's **Companion workbench** (`/companion`) works without an account or
+service credentials. Explore the progression curve, change evolution gates, and inspect a
+local combined-ledger snapshot. Preview XP stays in the browser; it does not change an
+installed pet. Imported snapshots are read locally and are not uploaded.
+
+In the source-built desktop app, open **EvoPet Progress** from the pet menu to see the
+combined ledger's level, XP, next evolution and care stats. The panel reads the pet half's
+state; the pet half remains the only writer of progression. Clean, Feed and Play use the
+same event queue as the existing care menu.
+
+The [companion development guide](docs/companion-development.md) gives the build, test
+and integration commands, the data contract, and the remaining release work.
 
 ## Status
 
-Honest, as of 11 September 2026:
+Source capabilities as of 6 November 2026:
 
-- The pet's mechanics, the combined ledger and the drain that fills it are in the pet tree.
-- The desktop shell runs as a **local build** on macOS. There is no notarized download yet,
-  and a bundle built on one Mac is rejected by Gatekeeper on any other, so nothing installs
-  on a machine that did not build it.
-- The library service is written and passes its own end-to-end round trip, but it is **not
-  deployed**. The site's library page reports that it cannot reach the library rather than
-  showing a fake empty shelf.
-- EvoPet's own repository is public as of 11 September 2026.
+- The mechanics, combined ledger, drain and sprite compiler live in the separate
+  [TamaHermes tree](https://github.com/ahrazzle/TamaHermes). The current curve represents
+  levels 1 through 999. A running older installation can still use the earlier curve;
+  readers must not silently reinterpret it.
+- The native shell is a local source build. The progress panel does not install the pet
+  half, run the drain, or activate agent hooks by itself. macOS distribution still needs
+  a signed and notarized release and fresh-machine acceptance.
+- OpenCode's bundled V1 plugin emits prompt and completion boundaries, so tools do not
+  inflate XP. This is the V1 plugin interface, not a claim of OpenCode V2 compatibility.
+- The static workbench is independent of the community library. Library publication
+  still needs a configured database, storage and service endpoint.
 
 ## Install and develop
 
 The pet and the shell install separately, and the pet runs alone in the terminal with no
 desktop app at all.
 
-**The pet half.** From a checkout of the pet tree:
+**The pet half.** From a checkout of [TamaHermes](https://github.com/ahrazzle/TamaHermes):
 
 ```sh
 ./hermes/install-hermes.sh --line toast --machine aurora
@@ -113,9 +133,9 @@ Hermes homes are profile-scoped, so install once per profile you actually use.
 `install-all-profiles.sh` covers the default profile and every named profile on the machine
 in one command. To float the pet on the desktop, mirror it into the shell's pet directory.
 
-**The desktop shell.** Today the honest path is to build it from the app tree on the machine
-that will run it; it is a native build against a pinned SDK, and macOS distribution needs
-local notarization.
+**The desktop shell.** Build with the pinned Native SDK and Zig 0.16.0 using the
+[development guide](docs/companion-development.md). Building and testing do not require
+the gallery's cloud services. A build is separate from installing or replacing an app.
 
 **The project site.** `site/` is a static Astro site with no runtime dependency beyond the
 browser reading the library's public index:

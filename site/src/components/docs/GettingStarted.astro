@@ -294,9 +294,11 @@ const pathTable: [string, string][] = [
       </table>
     </div>
     <p>
-      Only numbers are stored: XP, counters, stats and traits — never your prompts, never tool
-      output, never a file path. The combined ledger's restriction is enforced by its own test
-      rather than by convention.
+      The ledger stores progression numbers alongside operational cursors, attribution and mirror
+      configuration. The transient hook queue can contain session titles and source paths until
+      it is consumed. The workbench reads only supported numbers and discards arbitrary metadata;
+      the drain tests check that raw prompt, title and source-path text is not copied into
+      progression records.
     </p>
   </section>
 

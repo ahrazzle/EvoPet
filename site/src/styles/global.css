@@ -1829,6 +1829,38 @@ input::placeholder {
   }
 }
 
+/* Keep the companion visible on small screens. Repository links remain in
+ * the footer; the header keeps the brand and all primary destinations. */
+@media (max-width: 600px) {
+  html {
+    scroll-padding-top: 16px;
+  }
+
+  .site-header {
+    position: relative;
+  }
+
+  .site-header .wrap {
+    gap: 0;
+  }
+
+  .site-nav {
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    gap: 0;
+  }
+
+  .site-nav a {
+    padding-inline: 8px;
+    font-size: 14px;
+  }
+
+  .site-nav a[data-external],
+  .site-nav .nav-sep {
+    display: none;
+  }
+}
+
 @media (max-width: 560px) {
   .wrap,
   .hero .wrap {

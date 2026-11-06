@@ -140,6 +140,7 @@ pub const Msg = union(enum) {
     pet_filter: canvas.TextInputEvent,
     toggle_pets_expanded,
     toggle_flock_window,
+    toggle_growth_window,
     focus_flock_member: u32,
     manifest_done: native_sdk.EffectExit,
     pet_json_done: native_sdk.EffectExit,
@@ -373,6 +374,9 @@ pub const Model = struct {
     codex_trust_note: bool = false,
     pet_filter: [48]u8 = @splat(0),
     pet_filter_len: usize = 0,
+    growth_open: bool = false,
+    growth: growth_mod.Snapshot = .{},
+    growth_poll: u8 = 0,
     pets_expanded: bool = false,
     /// One body per live agent. Derived from the same bubbles the
     /// mailbox already keys by session, so the set exists whether or
@@ -453,6 +457,7 @@ fn onAppearance(appearance: native_sdk.platform.Appearance) ?Msg {
 
 // Catalog table and slug lookup live in catalog.zig (#613).
 const catalog_mod = @import("catalog.zig");
+const growth_mod = @import("growth.zig");
 const evopet_settings = @import("evopet_settings.zig");
 const settings_view = @import("settings_view.zig");
 pub const max_catalog = catalog_mod.max_catalog;
@@ -595,6 +600,7 @@ fn petdexDirsFor(slug: []const u8) void {
 /// pets. The manifest is re-fetched per install run rather than cached,
 /// so a pet approved after the app launched is still installable.
 fn startInstallQueue(model: *Model, fx: *Effects) void {
+    if (!externalEffectsEnabled()) return;
     if (model.install.busy() or model.install.queued == 0) return;
     if (installer.detect() == null) {
         std.debug.print("{s}", .{installer.missing_downloader_note});
@@ -958,6 +964,7 @@ const update_failure_retry_ms: u64 = 60 * 60 * 1000;
 const homebrew_timeout_ms: u64 = 8000;
 
 fn loadAuthSession(model: *Model, fx: *Effects) void {
+    if (!externalEffectsEnabled()) return;
     if (!desktop_auth.available) return;
     model.auth.phase = .loading;
     var stored_buf: [17000]u8 = undefined;
@@ -973,6 +980,7 @@ fn loadAuthSession(model: *Model, fx: *Effects) void {
 }
 
 fn saveAuthSession(model: *const Model, fx: *Effects) void {
+    if (!externalEffectsEnabled()) return;
     _ = fx;
     if (!desktop_auth.available) return;
     var session_buf: [17000]u8 = undefined;
@@ -981,6 +989,7 @@ fn saveAuthSession(model: *const Model, fx: *Effects) void {
 }
 
 fn fetchAuthLibrary(model: *Model, fx: *Effects) void {
+    if (!externalEffectsEnabled()) return;
     if (model.auth.access_token_len == 0) {
         model.auth.setError("Your Petdex session is missing an access token");
         return;
@@ -1002,6 +1011,7 @@ fn fetchAuthLibrary(model: *Model, fx: *Effects) void {
 }
 
 fn requestAuthTokens(model: *Model, code: ?[]const u8, fx: *Effects) void {
+    if (!externalEffectsEnabled()) return;
     var body_buf: [10000]u8 = undefined;
     const body = if (code) |value| desktop_auth.tokenBody(&model.auth, value, &body_buf) else desktop_auth.refreshBody(&model.auth, &body_buf);
     const payload = body orelse {
@@ -1033,6 +1043,7 @@ fn authPetForCell(model: *const Model, cell: usize) ?*const desktop_auth.Pet {
 }
 
 fn fetchNextAuthPreview(model: *Model, fx: *Effects) void {
+    if (!externalEffectsEnabled()) return;
     while (model.auth_preview_next < auth_preview_count) {
         const cell = model.auth_preview_next;
         model.auth_preview_next += 1;
@@ -1049,6 +1060,7 @@ fn fetchNextAuthPreview(model: *Model, fx: *Effects) void {
 }
 
 fn startAuthImages(model: *Model, fx: *Effects) void {
+    if (!externalEffectsEnabled()) return;
     auth_avatar_ready = false;
     model.auth_preview_next = 0;
     model.auth_preview_ready = @splat(false);
@@ -1126,6 +1138,7 @@ fn updateCheckDelay(last_check_ms: i64, now_ms: i64) u64 {
 }
 
 fn armNextUpdateCheck(model: *const Model, fx: *Effects) void {
+    if (!externalEffectsEnabled()) return;
     if (!model.update_checks_enabled) return;
     fx.startTimer(.{
         .key = update_boot_timer_key,
@@ -1136,6 +1149,7 @@ fn armNextUpdateCheck(model: *const Model, fx: *Effects) void {
 }
 
 fn armUpdateRetry(model: *const Model, fx: *Effects) void {
+    if (!externalEffectsEnabled()) return;
     if (!model.update_checks_enabled) return;
     fx.startTimer(.{
         .key = update_boot_timer_key,
@@ -1146,6 +1160,7 @@ fn armUpdateRetry(model: *const Model, fx: *Effects) void {
 }
 
 fn startUpdateCheck(model: *Model, manual: bool, fx: *Effects) void {
+    if (!externalEffectsEnabled()) return;
     if (model.update_phase == .checking or model.update_cancel_pending) return;
     model.update_manual = manual;
     model.update_phase = .checking;
@@ -1228,6 +1243,17 @@ var sheet: Sheet = .{};
 /// global getenv; env rides std.process.Init).
 var env_home: ?[]const u8 = null;
 var env_wanted_pet: ?[]const u8 = null;
+/// Explicit local fixture mode: no Keychain access, cloud requests, updates,
+/// remote SSH setup or managed agent-hook migration. Loopback hooks remain live.
+var env_offline: bool = false;
+fn externalEffectsEnabled() bool {
+    return !env_offline;
+}
+
+fn offlineEnabled(value: ?[]const u8) bool {
+    return if (value) |text| std.mem.eql(u8, text, "1") else false;
+}
+
 var env_auth_library_url: []const u8 = desktop_auth.library_url;
 
 fn readFileAbsolute(io: std.Io, allocator: std.mem.Allocator, path: []const u8, max: usize) ![]u8 {
@@ -1447,10 +1473,22 @@ fn unescapeTitleForDisplay(raw: []const u8, out: []u8) ?[]const u8 {
         var advance: usize = 1;
         if (raw[i] == '\\' and i + 1 < raw.len) {
             switch (raw[i + 1]) {
-                '"' => { cp = '"'; advance = 2; },
-                '\\' => { cp = '\\'; advance = 2; },
-                '/' => { cp = '/'; advance = 2; },
-                'b', 'f', 'n', 'r', 't' => { cp = ' '; advance = 2; },
+                '"' => {
+                    cp = '"';
+                    advance = 2;
+                },
+                '\\' => {
+                    cp = '\\';
+                    advance = 2;
+                },
+                '/' => {
+                    cp = '/';
+                    advance = 2;
+                },
+                'b', 'f', 'n', 'r', 't' => {
+                    cp = ' ';
+                    advance = 2;
+                },
                 'u' => {
                     const hi = hex4(raw, i + 2) orelse return null;
                     advance = 6;
@@ -2377,6 +2415,7 @@ fn runRemoteAction(model: *Model, slot_idx: usize, action: remote_runtime.Action
 /// remote's probe. A missing or unparsable config is a no-op. Local
 /// pets never depend on remotes.
 fn startRemotes(model: *Model, fx: *Effects) void {
+    if (!externalEffectsEnabled()) return;
     const home = env_home orelse return;
     // A crash can strand private fetch snapshots; they are never inputs to a
     // later run, so remove them before reading any remote configuration.
@@ -2407,9 +2446,11 @@ pub fn boot(model: *Model, fx: *Effects) void {
         // Upgrade old CLI-written hooks before any agent starts another
         // session. The migration recognizes only Petdex-owned legacy
         // commands and leaves malformed or foreign configs untouched.
-        const migration = agent_hooks.migrateLegacyHooks(boot_allocator, home);
-        if (migration.failed > 0) {
-            std.debug.print("petdex: {d} legacy hook configuration(s) could not be migrated; repair the config and update the affected agent in Settings\n", .{migration.failed});
+        if (!env_offline) {
+            const migration = agent_hooks.migrateLegacyHooks(boot_allocator, home);
+            if (migration.failed > 0) {
+                std.debug.print("petdex: {d} legacy hook configuration(s) could not be migrated; repair the config and update the affected agent in Settings\n", .{migration.failed});
+            }
         }
         hook_server.start(boot_allocator, home) catch |err| {
             std.debug.print("petdex: hook server failed to start ({s})\n", .{@errorName(err)});
@@ -2569,6 +2610,10 @@ fn setThrowState(model: *Model, state: State, fx: *Effects) void {
 }
 
 pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
+    if (env_offline) switch (msg) {
+        .auth_sign_in, .auth_sign_out, .auth_refresh, .check_updates, .download_update, .install_agent, .uninstall_agent, .toggle_launch_at_login, .open_website, .open_pet_page, .open_active_pet_page, .auth_open_library, .auth_open_community, .auth_open_pet => return,
+        else => {},
+    };
     switch (msg) {
         .frame_tick => |timer| {
             if (timer.outcome != .fired) return;
@@ -2590,6 +2635,10 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             const pane = member.herdrPaneSlice();
             if (pane.len == 0) return;
             if (env_home) |home| _ = plat.activateHerdrPane(home, pane);
+        },
+        .toggle_growth_window => {
+            model.growth_open = !model.growth_open;
+            if (env_home) |home| model.growth = growth_mod.read(home);
         },
         .toggle_flock_window => {
             model.flock.open = !model.flock.open;
@@ -3451,6 +3500,12 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
         },
         .poll_tick => |timer| {
             if (timer.outcome != .fired) return;
+            if (model.growth_open) {
+                model.growth_poll +%= 1;
+                if (model.growth_poll % 10 == 0) {
+                    if (env_home) |home| model.growth = growth_mod.read(home);
+                }
+            }
             // Orphan watchdog (issue #19): the native runtime must not
             // outlive its desktop parent, spinning CPU with :7777 bound
             // and zombies accumulating. Sampled every 100 ticks (10s);
@@ -3625,6 +3680,7 @@ pub fn onCommand(name: []const u8) ?Msg {
     if (std.mem.eql(u8, name, "petdex.website")) return .open_website;
     if (std.mem.eql(u8, name, "petdex.pet-page")) return .open_active_pet_page;
     if (std.mem.eql(u8, name, "petdex.updates")) return .check_updates;
+    if (std.mem.eql(u8, name, "evopet.progress")) return .toggle_growth_window;
     if (std.mem.eql(u8, name, "petdex.flock")) return .toggle_flock_window;
     return null;
 }
@@ -3641,6 +3697,7 @@ const pet_menu = [_]AppUi.ContextMenuItem{
     .{ .label = "Open Flock", .msg = .toggle_flock_window },
     .{ .label = "View Pet on Petdex", .msg = .open_active_pet_page },
     .{ .label = "Close Pet", .msg = .close_pet },
+    .{ .label = "EvoPet Progress", .msg = .toggle_growth_window },
 };
 
 /// Names as the drain's ``CARE_ACTIONS`` spells them; the body below is parsed by
@@ -5346,6 +5403,20 @@ fn petdexWindows(model: *const Model, scratch: *PetdexApp.WindowsScratch) []cons
         }
         count += 1;
     }
+    if (model.growth_open) {
+        scratch.windows[count] = .{
+            .label = "growth",
+            .canvas_label = "growth-canvas",
+            .title = "EvoPet Progress",
+            .width = 360,
+            .height = 480,
+            .resizable = false,
+            .titlebar = .hidden_inset,
+            .floating = true,
+            .on_close = .toggle_growth_window,
+        };
+        count += 1;
+    }
     if (model.flock.open) {
         const size = flock_mod.windowSize(model.flock.len, flockLayout(model));
         scratch.windows[count] = .{
@@ -5393,7 +5464,62 @@ test "companion windows use the unified opaque shell" {
     try std.testing.expect(!windows[1].floating);
 }
 
+/// Floating, read-only view of the pet runtime's authoritative ledger.
+fn growthText(ui: *AppUi, options: AppUi.ElementOptions, value: []const u8) AppUi.Node {
+    return ui.text(options, ui.arena.dupe(u8, value) catch "Progress unavailable");
+}
+
+fn growthView(ui: *AppUi, model: *const Model) AppUi.Node {
+    var nodes: [12]AppUi.Node = undefined;
+    var count: usize = 0;
+    nodes[count] = growthText(ui, .{ .size = .lg }, "One pet, shared progress");
+    count += 1;
+    var lines: [8][160]u8 = undefined;
+    if (model.growth.status == .ready) {
+        const g = model.growth;
+        nodes[count] = growthText(ui, .{ .size = .lg }, std.fmt.bufPrint(&lines[0], "Level {d}  ·  {d} XP", .{ g.level, g.xp }) catch "");
+        count += 1;
+        const next = if (g.nextGate()) |gate|
+            std.fmt.bufPrint(&lines[1], "Next evolution: level {d} ({d} XP away)", .{ gate, growth_mod.xpForLevel(gate) - g.xp }) catch ""
+        else
+            "All evolution gates reached";
+        nodes[count] = growthText(ui, .{ .size = .sm }, next);
+        count += 1;
+        for (growth_mod.stat_names, 0..) |name, i| {
+            const label = if (g.stats[i]) |value|
+                std.fmt.bufPrint(&lines[i + 2], "{s}: {d}/100", .{ name, value }) catch ""
+            else
+                std.fmt.bufPrint(&lines[i + 2], "{s}: unavailable", .{name}) catch "";
+            nodes[count] = growthText(ui, .{ .size = .sm }, label);
+            count += 1;
+        }
+        nodes[count] = ui.row(.{ .gap = 8 }, .{
+            ui.button(.{ .size = .sm, .on_press = .{ .care = .clean } }, "Clean"),
+            ui.button(.{ .size = .sm, .on_press = .{ .care = .feed } }, "Feed"),
+            ui.button(.{ .size = .sm, .on_press = .{ .care = .play } }, "Play"),
+        });
+        count += 1;
+        nodes[count] = growthText(ui, .{ .size = .sm }, "Care applies when the pet runtime drains events.");
+        count += 1;
+        const stamp = if (g.updated_len > 0) std.fmt.bufPrint(&lines[7], "Ledger: {s}", .{g.updated[0..g.updated_len]}) catch "" else "Ledger update time unavailable";
+        nodes[count] = growthText(ui, .{ .size = .sm }, stamp);
+        count += 1;
+    } else {
+        nodes[count] = growthText(ui, .{ .size = .sm }, if (model.growth.status == .invalid) "Growth ledger unreadable or unsupported." else "Growth ledger unavailable.");
+        count += 1;
+        nodes[count] = growthText(ui, .{ .size = .sm }, "Run the TamaHermes combined-ledger drain.");
+        count += 1;
+    }
+    var root = ui.column(.{ .grow = 1, .gap = 12 }, .{
+        ui.el(.stack, .{ .height = companion_header_h, .window_drag = true }, .{}),
+        ui.column(.{ .grow = 1, .gap = 10, .cross = .center }, nodes[0..count]),
+    });
+    root.widget.style.background = settingsBackground(model);
+    return root;
+}
+
 fn petdexWindowView(ui: *PetdexApp.Ui, model: *const Model, window_label: []const u8) PetdexApp.Ui.Node {
+    if (std.mem.eql(u8, window_label, "growth")) return growthView(ui, model);
     if (std.mem.eql(u8, window_label, "bubble")) return bubbleView(ui, model);
     if (std.mem.eql(u8, window_label, flock_window_label)) return flockView(ui, model);
     std.debug.assert(std.mem.eql(u8, window_label, settings_window_label));
@@ -5507,6 +5633,7 @@ fn materializeTrayIcon() void {
 const app_menus = [_]native_sdk.platform.Menu{.{
     .title = "Pet",
     .items = &.{
+        .{ .label = "EvoPet Progress", .command = "evopet.progress" },
         .{ .label = "Settings...", .command = "petdex.settings", .key = ",", .modifiers = .{ .primary = true } },
         .{ .separator = true },
         .{ .label = "Close Pet", .command = "petdex.close", .key = "w", .modifiers = .{ .primary = true } },
@@ -5522,6 +5649,7 @@ pub fn main(init: std.process.Init) !void {
     // machine with nothing installed even with pets sitting in
     // %USERPROFILE%\.petdex\pets. HOME still wins where it exists, so a
     // POSIX user pointing it elsewhere keeps that.
+    env_offline = offlineEnabled(init.environ_map.get("PETDEX_OFFLINE"));
     env_home = init.environ_map.get("HOME") orelse init.environ_map.get("USERPROFILE");
     env_auth_library_url = init.environ_map.get("PETDEX_LIBRARY_URL") orelse desktop_auth.library_url;
     // Claude Code honors CLAUDE_CONFIG_DIR for fully isolated installs;
@@ -5563,7 +5691,9 @@ pub fn main(init: std.process.Init) !void {
             return;
         }
     }
-    if (argv0) |a0| refreshHookEntry(a0);
+    if (!env_offline) {
+        if (argv0) |a0| refreshHookEntry(a0);
+    }
     materializeTrayIcon();
     env_wanted_pet = init.environ_map.get("PETDEX_PET");
     boot_io = init.io;
@@ -7528,4 +7658,31 @@ test "pet package change detection detects pet.json mtime changes" {
 
     // Second check should detect the change
     try std.testing.expect(checkPetPackageChanges(&entry));
+}
+
+test "growth progress is an independent floating companion with its own command" {
+    try std.testing.expectEqual(Msg.toggle_growth_window, onCommand("evopet.progress").?);
+    var model: Model = .{};
+    model.bubbles_len = 1;
+    model.growth_open = true;
+    model.flock.open = true;
+    model.settings_open = true;
+    var scratch: PetdexApp.WindowsScratch = undefined;
+    const windows = petdexWindows(&model, &scratch);
+    try std.testing.expectEqual(@as(usize, 4), windows.len);
+    try std.testing.expectEqualStrings("growth", windows[1].label);
+    try std.testing.expect(windows[1].floating);
+    try std.testing.expectEqualStrings(flock_window_label, windows[2].label);
+    try std.testing.expectEqualStrings(settings_window_label, windows[3].label);
+}
+
+test "offline fixture policy explicitly disables external effects" {
+    const previous = env_offline;
+    defer env_offline = previous;
+    env_offline = offlineEnabled("1");
+    try std.testing.expect(!externalEffectsEnabled());
+    env_offline = offlineEnabled("0");
+    try std.testing.expect(externalEffectsEnabled());
+    env_offline = offlineEnabled(null);
+    try std.testing.expect(externalEffectsEnabled());
 }
