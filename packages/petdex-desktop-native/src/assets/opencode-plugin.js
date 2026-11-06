@@ -2,6 +2,7 @@
 // Forwards OpenCode lifecycle events to the petdex desktop mascot via HTTP.
 // Edit STATE_MAP below to customize which state each event triggers.
 
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -128,7 +129,7 @@ async function postJson(url, body, token) {
   }
 }
 
-async function notify({ state, duration, text, title, busy, sessionId }) {
+async function notify({ state, duration, text, title, busy, sessionId, phase }) {
   // Killswitch: users toggle this with /petdex inside their agent
   // (or 'petdex hooks toggle' from a shell). Bail before the token
   // read so the disabled state has zero filesystem cost beyond the
@@ -146,19 +147,26 @@ async function notify({ state, duration, text, title, busy, sessionId }) {
     duration != null
       ? { state, duration, agent_source: "opencode" }
       : { state, agent_source: "opencode" };
-  const metadata = originMetadata();
+  // A fresh notification must survive the ledger's content dedupe, even when
+  // two turns have the same prompt/status. Both HTTP bodies share its identity.
+  const metadata = { ...originMetadata(), event_id: randomUUID(), phase };
   Object.assign(stateBody, metadata);
   const bubbleBody = { text, agent_source: "opencode", ...metadata };
   if (sessionId) {
     stateBody.session_id = sessionId;
     bubbleBody.session_id = sessionId;
   }
+  // A stop is self-contained even when a drain runs between the two posts.
+  // Neutral visual states never claim an outcome.
+  if (phase === "stop" && (state === "jumping" || state === "failed")) {
+    bubbleBody.agent_state = state;
+  }
   if (title) bubbleBody.title = title;
   if (busy !== undefined) bubbleBody.busy = busy;
-  await Promise.all([
-    postJson(HOOK_SERVER_URL, stateBody, token),
-    text ? postJson(HOOK_SERVER_BUBBLE_URL, bubbleBody, token) : Promise.resolve(),
-  ]);
+  // Await the state request before sending its boundary. Each stop bubble
+  // carries its outcome, so separate acceptance or drain batches remain valid.
+  await postJson(HOOK_SERVER_URL, stateBody, token);
+  if (text) await postJson(HOOK_SERVER_BUBBLE_URL, bubbleBody, token);
 }
 
 // opencode's plugin API: the export IS an async function receiving
@@ -166,6 +174,7 @@ async function notify({ state, duration, text, title, busy, sessionId }) {
 // us opencode's own LLM-generated session titles for the bubble.
 const PetdexPlugin = async ({ client }) => {
   const titleCache = new Map();
+  const activeTurns = new Set();
   async function sessionTitle(sessionID) {
     if (!sessionID || !client) return titleCache.get(sessionID) || null;
     try {
@@ -180,8 +189,18 @@ const PetdexPlugin = async ({ client }) => {
     return titleCache.get(sessionID) || null;
   }
   return {
+    "chat.message": async (input) => {
+      if (typeof input?.sessionID !== "string" || input.sessionID.length === 0) return;
+      activeTurns.add(input.sessionID);
+      await notify({
+        state: "running", text: "Thinking…", busy: true,
+        title: await sessionTitle(input.sessionID),
+        sessionId: input.sessionID, phase: "user-prompt",
+      });
+    },
     "tool.execute.before": async (input, output) => notify({
       state: "running",
+      phase: "pre",
       text: formatTool(input.tool, output.args, "running"),
       title: await sessionTitle(input.sessionID),
       busy: true,
@@ -189,6 +208,7 @@ const PetdexPlugin = async ({ client }) => {
     }),
     "tool.execute.after": async (input) => notify({
       state: "idle",
+      phase: "post",
       text: formatTool(input.tool, input.args, "done"),
       title: await sessionTitle(input.sessionID),
       busy: true,
@@ -197,9 +217,14 @@ const PetdexPlugin = async ({ client }) => {
     event: async ({ event }) => {
       const sessionId = event?.properties?.sessionID;
       if (typeof sessionId !== "string" || sessionId.length === 0) return;
+      if (event.type !== "session.idle" && event.type !== "session.error") return;
+      // OpenCode may emit idle after error, or repeat idle: award each turn once.
+      // Preserve status visuals for sessions whose prompt predates plugin startup.
+      const closesTurn = activeTurns.delete(sessionId);
       if (event.type === "session.idle") {
         await notify({
-          state: "waving",
+          state: closesTurn ? "jumping" : "waving",
+          phase: closesTurn ? "stop" : undefined,
           duration: 1500,
           text: "Done.",
           title: await sessionTitle(sessionId),
@@ -209,6 +234,7 @@ const PetdexPlugin = async ({ client }) => {
       } else if (event.type === "session.error") {
         await notify({
           state: "failed",
+          phase: closesTurn ? "stop" : undefined,
           duration: 2500,
           text: "OpenCode hit an error.",
           title: await sessionTitle(sessionId),

@@ -1,4 +1,11 @@
-# EvoPet — working notes
+# EvoPet — historical working notes
+
+> These are September 2026 implementation notes, retained for design history.
+> They are not the current setup or completion checklist. The drain, combined
+> ledger and OpenCode turn phases described below as unfinished now exist in
+> source. See [README.md](README.md) and the
+> [companion development guide](docs/companion-development.md) for the current
+> architecture, supported contracts, build instructions and release boundaries.
 
 Working name: **EvoPet** (internal only; the public rename is deliberately the last step).
 Repo: this fork of `crafter-station/petdex` (fork at `ahrazzle/petdex`, cloned to `~/EvoPet`,
